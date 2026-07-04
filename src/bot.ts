@@ -1,4 +1,3 @@
-//import {startIdleUpdateWebhook} from './services/idle-update-webhook.js';
 import {Client, Collection, User} from 'discord.js';
 import {inject, injectable} from 'inversify';
 import ora from 'ora';
