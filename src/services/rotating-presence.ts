@@ -75,6 +75,7 @@ async function fetchPlaylistTracks(): Promise<string[]> {
     | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?fields=next,items(track(name,artists(name)))&limit=100`;
 
   while (url) {
+    // eslint-disable-next-line no-await-in-loop
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -85,6 +86,7 @@ async function fetchPlaylistTracks(): Promise<string[]> {
       throw new Error(`Spotify playlist request failed: ${res.status}`);
     }
 
+    // eslint-disable-next-line no-await-in-loop
     const data = (await res.json()) as {
       next: string | null;
       items: SpotifyPlaylistItem[];
