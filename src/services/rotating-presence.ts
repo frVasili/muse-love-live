@@ -56,10 +56,7 @@ async function getSpotifyToken(): Promise<string> {
 
   if (!res.ok) {
     const body = await res.text();
-
-    throw new Error(
-      `Spotify playlist request failed: ${res.status}\n${body}`,
-    );
+    throw new Error(`Spotify token request failed: ${res.status}\n${body}`);
   }
 
   const data = (await res.json()) as SpotifyTokenResponse;
@@ -77,7 +74,7 @@ async function fetchPlaylistTracks(): Promise<string[]> {
   let url:
     | string
     | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?fields=next,items(track(name,artists(name)))&limit=100`;
-
+  
   while (url) {
     // eslint-disable-next-line no-await-in-loop
     const res = await fetch(url, {
@@ -89,7 +86,6 @@ async function fetchPlaylistTracks(): Promise<string[]> {
     if (!res.ok) {
       // eslint-disable-next-line no-await-in-loop
       const body = await res.text();
-  
       throw new Error(`Spotify playlist request failed: ${res.status}\n${body}`);
     }
   
