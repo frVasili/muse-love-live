@@ -7,6 +7,10 @@ type SpotifyTokenResponse = {
 };
 
 type SpotifyPlaylistItem = {
+  item?: {
+    name?: string;
+    artists?: Array<{name?: string}>;
+  };
   track?: {
     name?: string;
     artists?: Array<{name?: string}>;
@@ -17,6 +21,7 @@ const enabled = process.env.ROTATING_STATUS_ENABLED === 'true';
 const intervalSeconds = Number(process.env.ROTATING_STATUS_INTERVAL_SECONDS ?? 90);
 const refreshMinutes = Number(process.env.ROTATING_STATUS_REFRESH_MINUTES ?? 360);
 const playlistId = process.env.LOVE_LIVE_SPOTIFY_PLAYLIST_ID;
+const spotifyMarket = process.env.SPOTIFY_MARKET ?? 'US';
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
@@ -69,7 +74,7 @@ async function fetchPlaylistTracks(): Promise<string[]> {
 
   const token = await getSpotifyToken();
   const found: string[] = [];
-  let url: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?fields=next,items(track(name,artists(name)))&limit=100`;
+  let url: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/items?fields=next,items(item(name,artists(name)))&limit=50&market=${encodeURIComponent(spotifyMarket)}`;
 
   while (url) {
     // eslint-disable-next-line no-await-in-loop
@@ -92,9 +97,10 @@ ${body}`);
       items: SpotifyPlaylistItem[];
     };
 
-    for (const item of data.items) {
-      const name = item.track?.name;
-      const artist = item.track?.artists?.map(a => a.name).filter(Boolean).join(', ');
+    for (const playlistItem of data.items) {
+      const item = playlistItem.item ?? playlistItem.track;
+      const name = item?.name;
+      const artist = item?.artists?.map(a => a.name).filter(Boolean).join(', ');
       if (name) {
         found.push(shorten(artist ? `${name} — ${artist}` : name));
       }
@@ -121,7 +127,7 @@ async function refreshTracksIfNeeded(): Promise<void> {
 }
 
 export function startRotatingPresence(client: Client): void {
-  console.log(`Rotating presence startup: enabled=${String(enabled)}, interval=${intervalSeconds}, refresh=${refreshMinutes}, playlist=${playlistId ?? ''}`);
+  console.log(`Rotating presence startup: enabled=${String(enabled)}, interval=${intervalSeconds}, refresh=${refreshMinutes}, playlist=${playlistId ?? ''}, market=${spotifyMarket}`);
 
   if (!enabled) {
     console.log('Rotating presence disabled; using normal Muse status');
