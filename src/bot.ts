@@ -71,6 +71,7 @@ export default class {
           }
 
           const requiresVC = command.requiresVC instanceof Function ? command.requiresVC(interaction) : command.requiresVC;
+
           if (requiresVC && interaction.member && !isUserInVoice(interaction.guild, interaction.member.user as User)) {
             await interaction.reply({content: errorMsg('gotta be in a voice channel'), ephemeral: true});
             return;
@@ -121,6 +122,7 @@ export default class {
 
       // Update commands
       const rest = new REST({version: '10'}).setToken(this.config.DISCORD_TOKEN);
+
       if (this.shouldRegisterCommandsOnBot) {
         spinner.text = '📡 updating commands on bot...';
         await rest.put(
@@ -129,7 +131,6 @@ export default class {
         );
       } else {
         spinner.text = '📡 updating commands in all guilds...';
-
         await Promise.all([
           ...this.client.guilds.cache.map(async guild => {
             await registerCommandsOnGuild({
@@ -141,8 +142,7 @@ export default class {
           }),
           // Remove commands registered on bot (if they exist)
           rest.put(Routes.applicationCommands(this.client.user!.id), {body: []}),
-        ],
-        );
+        ]);
       }
 
       this.client.user!.setPresence({
@@ -163,9 +163,9 @@ export default class {
 
     this.client.on('error', console.error);
     this.client.on('debug', debug);
-
     this.client.on('guildCreate', handleGuildCreate);
     this.client.on('voiceStateUpdate', handleVoiceStateUpdate);
+
     await this.client.login();
   }
 }
