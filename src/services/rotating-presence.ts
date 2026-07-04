@@ -25,7 +25,6 @@ let lastRefresh = 0;
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
-
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -44,7 +43,6 @@ async function getSpotifyToken(): Promise<string> {
   }
 
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: {
@@ -97,7 +95,6 @@ ${body}`);
     for (const item of data.items) {
       const name = item.track?.name;
       const artist = item.track?.artists?.map(a => a.name).filter(Boolean).join(', ');
-
       if (name) {
         found.push(shorten(artist ? `${name} — ${artist}` : name));
       }
@@ -111,13 +108,11 @@ ${body}`);
 
 async function refreshTracksIfNeeded(): Promise<void> {
   const now = Date.now();
-
   if (tracks.length > 0 && now - lastRefresh < refreshMinutes * 60 * 1000) {
     return;
   }
 
   const nextTracks = await fetchPlaylistTracks();
-
   if (nextTracks.length > 0) {
     tracks = nextTracks;
     lastRefresh = now;
@@ -126,7 +121,7 @@ async function refreshTracksIfNeeded(): Promise<void> {
 }
 
 export function startRotatingPresence(client: Client): void {
-  console.log(`Rotating presence startup: enabled=${enabled}, interval=${intervalSeconds}, refresh=${refreshMinutes}, playlist=${playlistId ?? ''}`);
+  console.log(`Rotating presence startup: enabled=${String(enabled)}, interval=${intervalSeconds}, refresh=${refreshMinutes}, playlist=${playlistId ?? ''}`);
 
   if (!enabled) {
     console.log('Rotating presence disabled; using normal Muse status');
@@ -134,11 +129,9 @@ export function startRotatingPresence(client: Client): void {
   }
 
   let index = 0;
-
-  const update = async () => {
+  const update = async (): Promise<void> => {
     try {
       await refreshTracksIfNeeded();
-
       if (tracks.length === 0 || !client.user) {
         return;
       }
@@ -161,5 +154,7 @@ export function startRotatingPresence(client: Client): void {
   };
 
   void update();
-  setInterval(update, Math.max(intervalSeconds, 60) * 1000);
+  setInterval(() => {
+    void update();
+  }, Math.max(intervalSeconds, 60) * 1000);
 }
