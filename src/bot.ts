@@ -14,6 +14,7 @@ import {generateDependencyReport} from '@discordjs/voice';
 import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v10';
 import registerCommandsOnGuild from './utils/register-commands-on-guild.js';
+import {startRotatingPresence} from './services/rotating-presence.js';
 
 @injectable()
 export default class {
@@ -32,6 +33,9 @@ export default class {
   }
 
   public async register(): Promise<void> {
+    this.client.once ('ready', () => {
+      startRotatingPresence (this.client);
+    });
     // Load in commands
     for (const command of container.getAll<Command>(TYPES.Command)) {
       // Make sure we can serialize to JSON without errors
