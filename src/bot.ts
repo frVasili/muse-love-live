@@ -60,7 +60,6 @@ export default class {
       try {
         if (interaction.isCommand()) {
           const command = this.commandsByName.get(interaction.commandName);
-
           if (!command || !interaction.isChatInputCommand()) {
             return;
           }
@@ -71,7 +70,6 @@ export default class {
           }
 
           const requiresVC = command.requiresVC instanceof Function ? command.requiresVC(interaction) : command.requiresVC;
-
           if (requiresVC && interaction.member && !isUserInVoice(interaction.guild, interaction.member.user as User)) {
             await interaction.reply({content: errorMsg('gotta be in a voice channel'), ephemeral: true});
             return;
@@ -82,7 +80,6 @@ export default class {
           }
         } else if (interaction.isButton()) {
           const command = this.commandsByButtonId.get(interaction.customId);
-
           if (!command) {
             return;
           }
@@ -92,7 +89,6 @@ export default class {
           }
         } else if (interaction.isAutocomplete()) {
           const command = this.commandsByName.get(interaction.commandName);
-
           if (!command) {
             return;
           }
@@ -103,7 +99,6 @@ export default class {
         }
       } catch (error: unknown) {
         debug(error);
-
         // This can fail if the message was deleted, and we don't want to crash the whole bot
         try {
           if ((interaction.isCommand() || interaction.isButton()) && (interaction.replied || interaction.deferred)) {
@@ -116,13 +111,11 @@ export default class {
     });
 
     const spinner = ora('📡 connecting to Discord...').start();
-
     this.client.once('ready', async () => {
       debug(generateDependencyReport());
 
       // Update commands
       const rest = new REST({version: '10'}).setToken(this.config.DISCORD_TOKEN);
-
       if (this.shouldRegisterCommandsOnBot) {
         spinner.text = '📡 updating commands on bot...';
         await rest.put(
