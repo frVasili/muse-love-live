@@ -1,4 +1,4 @@
-import {startIdleUpdateWebhook} from './services/idle-update-webhook.js';
+//import {startIdleUpdateWebhook} from './services/idle-update-webhook.js';
 import {Client, Collection, User} from 'discord.js';
 import {inject, injectable} from 'inversify';
 import ora from 'ora';
@@ -34,10 +34,6 @@ export default class {
   }
 
   public async register(): Promise<void> {
-    this.client.once ('ready', () => {
-      startRotatingPresence (this.client);
-      startIdleUpdateWebhook (this.client);
-    });
     // Load in commands
     for (const command of container.getAll<Command>(TYPES.Command)) {
       // Make sure we can serialize to JSON without errors
@@ -161,6 +157,8 @@ export default class {
         status: this.config.BOT_STATUS,
       });
 
+      startRotatingPresence(this.client);
+      
       spinner.succeed(`Ready! Invite the bot with https://discordapp.com/oauth2/authorize?client_id=${this.client.user?.id ?? ''}&scope=bot%20applications.commands&permissions=36700160`);
     });
 
