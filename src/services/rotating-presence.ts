@@ -55,7 +55,11 @@ async function getSpotifyToken(): Promise<string> {
   });
 
   if (!res.ok) {
-    throw new Error(`Spotify token request failed: ${res.status}`);
+    const body = await res.text();
+
+    throw new Error(
+      `Spotify playlist request failed: ${res.status}\n${body}`,
+    );
   }
 
   const data = (await res.json()) as SpotifyTokenResponse;
