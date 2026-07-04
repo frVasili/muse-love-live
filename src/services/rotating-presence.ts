@@ -85,26 +85,29 @@ async function fetchPlaylistTracks(): Promise<string[]> {
         Authorization: `Bearer ${token}`,
       },
     });
-
+  
     if (!res.ok) {
-      throw new Error(`Spotify playlist request failed: ${res.status}`);
+      // eslint-disable-next-line no-await-in-loop
+      const body = await res.text();
+  
+      throw new Error(`Spotify playlist request failed: ${res.status}\n${body}`);
     }
-
+  
     // eslint-disable-next-line no-await-in-loop
     const data = (await res.json()) as {
       next: string | null;
       items: SpotifyPlaylistItem[];
     };
-
+  
     for (const item of data.items) {
       const name = item.track?.name;
       const artist = item.track?.artists?.map(a => a.name).filter(Boolean).join(', ');
-
+  
       if (name) {
         found.push(shorten(artist ? `${name} — ${artist}` : name));
       }
     }
-
+  
     url = data.next;
   }
 
