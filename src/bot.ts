@@ -1,3 +1,4 @@
+import {startIdleUpdateWebhook} from './services/idle-update-webhook.js';
 import {Client, Collection, User} from 'discord.js';
 import {inject, injectable} from 'inversify';
 import ora from 'ora';
@@ -35,6 +36,7 @@ export default class {
   public async register(): Promise<void> {
     this.client.once ('ready', () => {
       startRotatingPresence (this.client);
+      startIdleUpdateWebhook (this.client);
     });
     // Load in commands
     for (const command of container.getAll<Command>(TYPES.Command)) {
