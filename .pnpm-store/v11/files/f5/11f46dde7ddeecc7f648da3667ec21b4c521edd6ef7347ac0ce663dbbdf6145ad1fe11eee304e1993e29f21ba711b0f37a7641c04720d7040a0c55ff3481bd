@@ -1,0 +1,2 @@
+declare const makeAnnouncementLines: (message: string, now?: Date | undefined, expiration?: Date | undefined) => string[] | null;
+export default makeAnnouncementLines;

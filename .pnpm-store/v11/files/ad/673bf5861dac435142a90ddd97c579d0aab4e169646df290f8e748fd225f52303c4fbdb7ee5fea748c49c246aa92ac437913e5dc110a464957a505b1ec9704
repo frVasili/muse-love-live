@@ -1,0 +1,7 @@
+"use strict";
+/**
+ * The category of a segment
+ *
+ * {@link https://wiki.sponsor.ajay.app/w/Guidelines#Category_Breakdown Category Breakdown}
+ */
+Object.defineProperty(exports, "__esModule", { value: true });

@@ -26,10 +26,10 @@ Muse is a **highly-opinionated midwestern self-hosted** Discord music bot **that
 
 ## Running
 
-Muse is written in TypeScript. You can either run Muse with Docker (recommended) or directly with Node.js. Both methods require the Discord and YouTube API keys below. Spotify keys are optional and enable Spotify URL conversion:
+Muse is written in TypeScript. You can either run Muse with Docker (recommended) or directly with Node.js. Both methods require the Discord and YouTube API keys below. Public Spotify URL conversion works without Spotify credentials. Spotify keys are optional backup support if Spotify's public web data changes:
 
 - `DISCORD_TOKEN` can be acquired [here](https://discordapp.com/developers/applications) by creating a 'New Application', then going to 'Bot'.
-- `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` can be acquired [here](https://developer.spotify.com/dashboard/applications) with 'Create a Client ID'.
+- Optional: `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` can be acquired [here](https://developer.spotify.com/dashboard/applications) with 'Create a Client ID'.
 - `YOUTUBE_API_KEY` can be acquired by [creating a new project](https://console.developers.google.com) in Google's Developer Console, enabling the YouTube API, and creating an API key under credentials.
 
 Muse will log a URL when run. Open this URL in a browser to invite Muse to your server. Muse will DM the server owner after it's added with setup instructions.
@@ -55,7 +55,7 @@ There are a variety of image tags available:
 (Replace empty config strings with correct values.)
 
 ```bash
-docker run -it -v "$(pwd)/data":/data -e DISCORD_TOKEN='' -e SPOTIFY_CLIENT_ID='' -e SPOTIFY_CLIENT_SECRET='' -e YOUTUBE_API_KEY='' ghcr.io/museofficial/muse:latest
+docker run -it -v "$(pwd)/data":/data -e DISCORD_TOKEN='' -e YOUTUBE_API_KEY='' ghcr.io/museofficial/muse:latest
 ```
 
 This starts Muse and creates a data directory in your current directory.
@@ -74,8 +74,9 @@ services:
     environment:
       - DISCORD_TOKEN=
       - YOUTUBE_API_KEY=
-      - SPOTIFY_CLIENT_ID=
-      - SPOTIFY_CLIENT_SECRET=
+      # Optional Spotify API fallback:
+      # - SPOTIFY_CLIENT_ID=
+      # - SPOTIFY_CLIENT_SECRET=
 ```
 
 If you keep the same `DISCORD_TOKEN`, reuse the same `/data` volume, and point your Compose service at a newer image tag, Muse will come back up with the same bot identity and persisted database/cache.
@@ -145,6 +146,15 @@ In the default state, Muse has the status "Online" and the text "Listening to Mu
 - `BOT_ACTIVITY_TYPE=STREAMING`
 - `BOT_ACTIVITY_URL=https://www.twitch.tv/monstercat`
 - `BOT_ACTIVITY=Monstercat`
+
+### Rotating Spotify Playlist Status
+
+Muse can also rotate its Discord status through the tracks in a public Spotify playlist. This uses the same public Spotify lookup as queueing, so it does not need OAuth.
+
+- `ROTATING_STATUS_ENABLED=true`
+- `ROTATING_SPOTIFY_PLAYLIST_ID=` the playlist ID from a public Spotify playlist URL
+- `ROTATING_STATUS_INTERVAL_SECONDS=90` optional, minimum 60 seconds
+- `ROTATING_STATUS_REFRESH_MINUTES=360` optional, reloads the playlist every 6 hours by default
 
 ### Bot-wide commands
 

@@ -1,0 +1,9 @@
+import type { Settings, SettingsWithPopulatedDefaults } from './types';
+import { Format } from './types.js';
+/**
+ *
+ * @param settings
+ */
+export declare const makeLines: (settings: Settings) => string[];
+export type { Settings, SettingsWithPopulatedDefaults };
+export { Format };

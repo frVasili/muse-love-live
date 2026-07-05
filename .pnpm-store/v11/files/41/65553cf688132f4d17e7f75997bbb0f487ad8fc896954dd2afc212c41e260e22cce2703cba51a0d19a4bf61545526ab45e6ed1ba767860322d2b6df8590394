@@ -1,0 +1,11 @@
+const makeAnnouncementLines = (message, now, expiration) => {
+    if (message === '') {
+        return null;
+    }
+    if (expiration && now && expiration.getTime() < now.getTime()) {
+        return null;
+    }
+    return [`📣 ${message}`, ''];
+};
+export default makeAnnouncementLines;
+//# sourceMappingURL=announcement.js.map

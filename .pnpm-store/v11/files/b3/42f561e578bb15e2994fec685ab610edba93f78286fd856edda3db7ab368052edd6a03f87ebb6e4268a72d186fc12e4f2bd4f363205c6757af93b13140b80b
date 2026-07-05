@@ -1,0 +1,4 @@
+import { Settings } from '../types.js';
+export declare type RequiredParams = 'madeByPrefix' | 'authors' | 'lineLength' | 'separator';
+declare const makeMadeByLines: ({ madeByPrefix, authors, lineLength, separator }: Required<Pick<Settings, RequiredParams>>) => string[] | null;
+export default makeMadeByLines;

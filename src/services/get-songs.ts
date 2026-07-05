@@ -49,7 +49,7 @@ export default class {
         }
       } else if (url.protocol === 'spotify:' || url.host === 'open.spotify.com') {
         if (this.spotifyAPI === undefined) {
-          throw new Error('Spotify is not enabled!');
+          throw new Error('Spotify support is unavailable!');
         }
 
         const [convertedSongs, nSongsNotFound, totalSongs] = await this.spotifySource(query, playlistLimit, shouldSplitChapters);
@@ -81,7 +81,7 @@ export default class {
         }
       }
     } catch (err: any) {
-      if (err instanceof Error && err.message === 'Spotify is not enabled!') {
+      if (err instanceof Error && err.message === 'Spotify support is unavailable!') {
         throw err;
       }
 

@@ -1,0 +1,4 @@
+import { Category } from "./types";
+export declare class Constants {
+    static readonly ALL_CATEGORIES: Category[];
+}

@@ -1,0 +1,89 @@
+{
+  "name": "pagination.djs",
+  "version": "4.0.18",
+  "description": "A discord.js compatible pagination module",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "types": "./dist/index.d.ts",
+    "import": "./dist/index.mjs",
+    "require": "./dist/index.js"
+  },
+  "scripts": {
+    "docs": "typedoc",
+    "build": "tsup",
+    "format": "prettier --write . --cache",
+    "lint": "eslint . --fix --cache",
+    "typecheck": "tsc -p tsconfig.base.json",
+    "bump": "cliff-jumper",
+    "check-update": "cliff-jumper --dry-run",
+    "_postinstall": "husky .github/husky",
+    "prepack": "yarn build && pinst --disable",
+    "postpack": "pinst --enable"
+  },
+  "keywords": [
+    "pagination",
+    "discord",
+    "discord.js",
+    "pagination.djs",
+    "pagination-discord",
+    "pagination-discord.js",
+    "pagination-djs",
+    "discord-pagination",
+    "discord-button-pagination"
+  ],
+  "author": "imranbarbhuiya",
+  "license": "MIT",
+  "files": [
+    "dist/**/*.js*",
+    "dist/**/*.mjs*",
+    "dist/**/*.d*"
+  ],
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@favware/cliff-jumper": "^6.0.0",
+    "@favware/npm-deprecate": "^2.0.0",
+    "cz-conventional-changelog": "^3.3.0",
+    "discord.js": "^14.18.0",
+    "eslint": "^9.23.0",
+    "eslint-config-mahir": "^1.0.7",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
+    "pinst": "^3.0.0",
+    "prettier": "^3.5.3",
+    "tsup": "^8.4.0",
+    "typedoc": "^0.28.1",
+    "typescript": "^5.8.2"
+  },
+  "peerDependencies": {
+    "discord.js": "^14.18.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imranbarbhuiya/pagination.djs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/imranbarbhuiya/pagination.djs/issues"
+  },
+  "homepage": "https://pagination-djs.js.org",
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "lint-staged": {
+    "*.{mjs,js,ts}": "eslint --fix"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "resolutions": {
+    "ansi-regex": "^5.0.1",
+    "minimist": "^1.2.8"
+  },
+  "packageManager": "yarn@4.7.0"
+}

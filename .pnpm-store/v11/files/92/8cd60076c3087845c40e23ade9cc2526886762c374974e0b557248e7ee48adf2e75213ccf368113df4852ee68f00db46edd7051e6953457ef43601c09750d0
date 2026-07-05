@@ -1,0 +1,57 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.statusCheck = exports.dbuserStatsToUserStats = exports.resolveVideo = exports.resolveSegment = void 0;
+const ResponseError_1 = require("../errors/ResponseError");
+function resolveSegment(resolvable) {
+    let UUID;
+    if (typeof resolvable === 'string') {
+        UUID = resolvable;
+    }
+    else {
+        UUID = resolvable.UUID;
+    }
+    return UUID;
+}
+exports.resolveSegment = resolveSegment;
+function resolveVideo(resolvable) {
+    let videoID;
+    if (typeof resolvable === 'string') {
+        videoID = resolvable;
+    }
+    else {
+        videoID = resolvable.videoID;
+    }
+    return videoID;
+}
+exports.resolveVideo = resolveVideo;
+function dbuserStatsToUserStats(dbuserStat) {
+    let userStats = [];
+    for (let i = 0; i < dbuserStat.userNames[0].length; i++) {
+        let { userNames, viewCounts, totalSubmissions, minutesSaved } = dbuserStat;
+        userStats.push({ userName: userNames[i], viewCounts: viewCounts[i], totalSubmissions: totalSubmissions[i], minutesSaved: minutesSaved[i] });
+    }
+    return userStats;
+}
+exports.dbuserStatsToUserStats = dbuserStatsToUserStats;
+/** @throws {@link ResponseError} */
+function statusCheck(res) {
+    if (res.status !== 200) {
+        /** @internal */
+        const makeErrMsg = (msg) => `[SponsorBlock] ${msg}`;
+        const msgErrors = {
+            400: 'Bad Request (Your inputs are wrong/impossible)',
+            403: 'Rejected by auto moderator',
+            404: 'Not Found',
+            405: 'Duplicate',
+            409: 'Duplicate',
+            429: 'Rate Limit (Too many for the same user or IP)'
+        };
+        if (msgErrors[res.status] !== undefined) {
+            throw new ResponseError_1.ResponseError(res.status, makeErrMsg(msgErrors[res.status]));
+        }
+        else {
+            throw new ResponseError_1.ResponseError(res.status, makeErrMsg(`Status code not 200 (${res.status})`));
+        }
+    }
+}
+exports.statusCheck = statusCheck;

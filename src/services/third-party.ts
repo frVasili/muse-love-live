@@ -9,19 +9,12 @@ import debug from '../utils/debug.js';
 export default class ThirdParty {
   readonly spotify: SpotifyWebApi;
   private spotifyTokenTimerId?: NodeJS.Timeout;
-  private readonly spotifyRefreshToken: string;
 
   constructor(@inject(TYPES.Config) config: Config) {
-    this.spotifyRefreshToken = config.SPOTIFY_REFRESH_TOKEN.trim();
-
     this.spotify = new SpotifyWebApi({
       clientId: config.SPOTIFY_CLIENT_ID,
       clientSecret: config.SPOTIFY_CLIENT_SECRET,
     });
-
-    if (this.spotifyRefreshToken.length > 0) {
-      this.spotify.setRefreshToken(this.spotifyRefreshToken);
-    }
 
     void this.refreshSpotifyToken();
   }
@@ -35,10 +28,7 @@ export default class ThirdParty {
   private async refreshSpotifyToken() {
     try {
       await pRetry(async () => {
-        const auth = this.spotifyRefreshToken.length > 0
-          ? await this.spotify.refreshAccessToken()
-          : await this.spotify.clientCredentialsGrant();
-
+        const auth = await this.spotify.clientCredentialsGrant();
         this.spotify.setAccessToken(auth.body.access_token);
         this.scheduleSpotifyTokenRefresh((auth.body.expires_in / 2) * 1000);
       }, {retries: 5});
