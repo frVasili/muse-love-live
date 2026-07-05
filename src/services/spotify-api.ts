@@ -12,6 +12,10 @@ export interface SpotifyTrack {
   artist: string;
 }
 
+type SpotifyPlaylistItem = SpotifyApi.PlaylistTrackObject & {
+  item?: SpotifyApi.TrackObjectFull | SpotifyApi.EpisodeObjectFull | null;
+};
+
 @injectable()
 export default class {
   private readonly spotify: Spotify;
@@ -31,10 +35,10 @@ export default class {
 
   async getPlaylist(url: string, playlistLimit: number): Promise<[SpotifyTrack[], QueuedPlaylist]> {
     const uri = spotifyURI.parse(url) as spotifyURI.Playlist;
-
     let [{body: playlistResponse}, {body: tracksResponse}] = await Promise.all([this.spotify.getPlaylist(uri.id), this.spotify.getPlaylistTracks(uri.id, {limit: 50})]);
-
-    const items = tracksResponse.items.map(playlistItem => playlistItem.track);
+    const items = tracksResponse.items
+      .map(playlistItem => this.getTrackFromPlaylistItem(playlistItem as SpotifyPlaylistItem))
+      .filter((track): track is SpotifyApi.TrackObjectFull => track !== null);
     const playlist = {title: playlistResponse.name, source: playlistResponse.href};
 
     while (tracksResponse.next) {
@@ -44,10 +48,12 @@ export default class {
         offset: parseInt(new URL(tracksResponse.next).searchParams.get('offset') ?? '0', 10),
       }));
 
-      items.push(...tracksResponse.items.map(playlistItem => playlistItem.track));
+      items.push(...tracksResponse.items
+        .map(playlistItem => this.getTrackFromPlaylistItem(playlistItem as SpotifyPlaylistItem))
+        .filter((track): track is SpotifyApi.TrackObjectFull => track !== null));
     }
 
-    const tracks = this.limitTracks(items.filter(i => i !== null) as SpotifyApi.TrackObjectSimplified[], playlistLimit).map(this.toSpotifyTrack);
+    const tracks = this.limitTracks(items, playlistLimit).map(this.toSpotifyTrack);
 
     return [tracks, playlist];
   }
@@ -64,6 +70,16 @@ export default class {
     const {body} = await this.spotify.getArtistTopTracks(uri.id, 'US');
 
     return this.limitTracks(body.tracks, playlistLimit).map(this.toSpotifyTrack);
+  }
+
+  private getTrackFromPlaylistItem(playlistItem: SpotifyPlaylistItem): SpotifyApi.TrackObjectFull | null {
+    const item = playlistItem.track ?? playlistItem.item;
+
+    if (!item || item.type !== 'track') {
+      return null;
+    }
+
+    return item;
   }
 
   private toSpotifyTrack(track: SpotifyApi.TrackObjectSimplified): SpotifyTrack {
