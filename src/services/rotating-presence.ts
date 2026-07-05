@@ -112,7 +112,7 @@ ${responseBody}`);
       const artist = item?.artists?.map(a => a.name).filter(Boolean).join(', ');
 
       if (name) {
-        found.push(shorten(artist ? `${name} — ${artist}` : name));
+        found.push(shorten(artist ? `${name} by ${artist}` : name));
       }
     }
 
