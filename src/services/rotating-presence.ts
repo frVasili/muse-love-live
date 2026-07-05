@@ -20,7 +20,7 @@ type SpotifyPlaylistItem = {
 const enabled = process.env.ROTATING_STATUS_ENABLED === 'true';
 const intervalSeconds = Number(process.env.ROTATING_STATUS_INTERVAL_SECONDS ?? 90);
 const refreshMinutes = Number(process.env.ROTATING_STATUS_REFRESH_MINUTES ?? 360);
-const playlistId = process.env.LOVE_LIVE_SPOTIFY_PLAYLIST_ID;
+const playlistId = process.env.ROTATING_SPOTIFY_PLAYLIST_ID;
 const spotifyMarket = process.env.SPOTIFY_MARKET ?? 'US';
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -69,7 +69,7 @@ ${body}`);
 
 async function fetchPlaylistTracks(): Promise<string[]> {
   if (!playlistId) {
-    throw new Error('Missing LOVE_LIVE_SPOTIFY_PLAYLIST_ID');
+    throw new Error('Missing ROTATING_SPOTIFY_PLAYLIST_ID');
   }
 
   const token = await getSpotifyToken();
