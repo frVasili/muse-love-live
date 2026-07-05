@@ -5,6 +5,7 @@ import path from 'path';
 import xbytes from 'xbytes';
 import {ConditionalKeys} from 'type-fest';
 import {ActivityType, PresenceStatusData} from 'discord.js';
+
 dotenv.config({path: process.env.ENV_FILE ?? path.resolve(process.cwd(), '.env')});
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ? process.env.DATA_DIR : './data');
@@ -47,6 +48,8 @@ export default class Config {
   readonly YOUTUBE_API_KEY!: string;
   readonly SPOTIFY_CLIENT_ID!: string;
   readonly SPOTIFY_CLIENT_SECRET!: string;
+  readonly SPOTIFY_REFRESH_TOKEN!: string;
+  readonly ROTATING_SPOTIFY_PLAYLIST_ID!: string;
   readonly REGISTER_COMMANDS_ON_BOT!: boolean;
   readonly DATA_DIR!: string;
   readonly CACHE_DIR!: string;
