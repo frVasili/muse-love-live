@@ -46,6 +46,7 @@ export interface SongMetadata {
   thumbnailUrl: string | null;
   source: MediaSource;
 }
+
 export interface QueuedSong extends SongMetadata {
   addedInChannelId: Snowflake;
   requestedBy: string;
@@ -79,11 +80,9 @@ export default class {
   private nowPlaying: QueuedSong | null = null;
   private playPositionInterval: NodeJS.Timeout | undefined;
   private lastSongURL = '';
-
   private positionInSeconds = 0;
   private readonly fileCache: FileCacheProvider;
   private disconnectTimer: NodeJS.Timeout | null = null;
-
   private readonly channelToSpeakingUsers: Map<string, Set<string>> = new Map();
   private hasRegisteredVoiceActivityListener = false;
 
@@ -97,7 +96,6 @@ export default class {
       this.disconnect();
     }
 
-    // Always get freshest default volume setting value
     const settings = await getGuildSettings(this.guildId);
     const {defaultVolume = DEFAULT_VOLUME} = settings;
     this.defaultVolume = defaultVolume;
@@ -128,7 +126,6 @@ export default class {
         this.hasRegisteredVoiceActivityListener = true;
       }
     });
-
     voiceConnection.on(VoiceConnectionStatus.Disconnected, this.onVoiceConnectionDisconnect.bind(this));
 
     try {
@@ -150,7 +147,6 @@ export default class {
       this.loopCurrentSong = false;
       this.voiceConnection.destroy();
       this.audioPlayer?.stop(true);
-
       this.voiceConnection = null;
       this.audioPlayer = null;
       this.audioResource = null;
@@ -162,9 +158,7 @@ export default class {
 
   async seek(positionSeconds: number): Promise<void> {
     this.status = STATUS.PAUSED;
-
     const voiceConnection = await this.ensureVoiceConnectionReady();
-
     const currentSong = this.getCurrent();
 
     if (!currentSong) {
@@ -177,23 +171,24 @@ export default class {
 
     let realPositionSeconds = positionSeconds;
     let to: number | undefined;
+
     if (currentSong.offset !== undefined) {
       realPositionSeconds += currentSong.offset;
       to = currentSong.length + currentSong.offset;
     }
 
     const stream = await this.getStream(currentSong, {seek: realPositionSeconds, to});
+
     this.audioPlayer = createAudioPlayer({
       behaviors: {
-        // Needs to be somewhat high for livestreams
         maxMissedFrames: 50,
       },
     });
+
     voiceConnection.subscribe(this.audioPlayer);
     this.playAudioPlayerResource(this.createAudioStream(stream));
     this.attachListeners();
     this.startTrackingPosition(positionSeconds);
-
     this.status = STATUS.PLAYING;
   }
 
@@ -207,20 +202,17 @@ export default class {
 
   async play(): Promise<void> {
     const voiceConnection = await this.ensureVoiceConnectionReady();
-
     const currentSong = this.getCurrent();
 
     if (!currentSong) {
       throw new Error('Queue empty.');
     }
 
-    // Cancel any pending idle disconnection
     if (this.disconnectTimer) {
       clearInterval(this.disconnectTimer);
       this.disconnectTimer = null;
     }
 
-    // Resume from paused state
     if (this.status === STATUS.PAUSED && currentSong.url === this.nowPlaying?.url) {
       if (this.audioPlayer) {
         this.audioPlayer.unpause();
@@ -229,7 +221,6 @@ export default class {
         return;
       }
 
-      // Was disconnected, need to recreate stream
       if (!currentSong.isLive) {
         return this.seek(this.getPosition());
       }
@@ -238,41 +229,38 @@ export default class {
     try {
       let positionSeconds: number | undefined;
       let to: number | undefined;
+
       if (currentSong.offset !== undefined) {
         positionSeconds = currentSong.offset;
         to = currentSong.length + currentSong.offset;
       }
 
       const stream = await this.getStream(currentSong, {seek: positionSeconds, to});
+
       this.audioPlayer = createAudioPlayer({
         behaviors: {
-          // Needs to be somewhat high for livestreams
           maxMissedFrames: 50,
         },
       });
+
       voiceConnection.subscribe(this.audioPlayer);
       this.playAudioPlayerResource(this.createAudioStream(stream));
-
       this.attachListeners();
-
       this.status = STATUS.PLAYING;
       this.nowPlaying = currentSong;
 
       if (currentSong.url === this.lastSongURL) {
         this.startTrackingPosition();
       } else {
-        // Reset position counter
         this.startTrackingPosition(0);
         this.lastSongURL = currentSong.url;
       }
     } catch (error: unknown) {
       debug(`Failed to play ${currentSong.title}: ${error instanceof Error ? error.message : String(error)}`);
 
-      // If yt-dlp/ffmpeg cannot play the current track (for example: private, deleted,
-      // region-blocked, or copyright-blocked), skip it instead of letting the error
-      // bubble out and crash the Node process.
-      if (this.canGoForward(1)) {
-        this.manualForward(1);
+      this.removeCurrent();
+
+      if (this.getCurrent() && this.status !== STATUS.PAUSED) {
         await this.play();
         return;
       }
@@ -342,6 +330,7 @@ export default class {
 
       const member = this.currentChannel.members.get(userId);
       const channelId = this.currentChannel.id;
+
       if (member) {
         if (!this.channelToSpeakingUsers.has(channelId)) {
           this.channelToSpeakingUsers.set(channelId, new Set());
@@ -360,6 +349,7 @@ export default class {
     }
 
     const speakingUsers = this.channelToSpeakingUsers.get(this.currentChannel.id);
+
     if (speakingUsers && speakingUsers.size > 0) {
       this.setVolume(turnDownVolumeWhenPeopleSpeakTarget);
     } else {
@@ -407,20 +397,14 @@ export default class {
     return null;
   }
 
-  /**
-   * Returns queue, not including the current song.
-   * @returns {QueuedSong[]}
-   */
   getQueue(): QueuedSong[] {
     return this.queue.slice(this.queuePosition + 1);
   }
 
   add(song: QueuedSong, {immediate = false} = {}): void {
     if (song.playlist || !immediate) {
-      // Add to end of queue
       this.queue.push(song);
     } else {
-      // Add as the next song to be played
       const insertAt = this.queuePosition + 1;
       this.queue = [...this.queue.slice(0, insertAt), song, ...this.queue.slice(insertAt)];
     }
@@ -428,14 +412,11 @@ export default class {
 
   shuffle(): void {
     const shuffledSongs = shuffle(this.queue.slice(this.queuePosition + 1));
-
     this.queue = [...this.queue.slice(0, this.queuePosition + 1), ...shuffledSongs];
   }
 
   clear(): void {
     const newQueue = [];
-
-    // Don't clear curently playing song
     const current = this.getCurrent();
 
     if (current) {
@@ -474,18 +455,15 @@ export default class {
     }
 
     this.queue.splice(this.queuePosition + to, 0, this.queue.splice(this.queuePosition + from, 1)[0]);
-
     return this.queue[this.queuePosition + to];
   }
 
   setVolume(level: number): void {
-    // Level should be a number between 0 and 100 = 0% => 100%
     this.volume = level;
     this.setAudioPlayerVolume(level);
   }
 
   getVolume(): number {
-    // Only use default volume if player volume is not already set (in the event of a reconnect we shouldn't reset)
     return this.volume ?? this.defaultVolume;
   }
 
@@ -514,10 +492,8 @@ export default class {
       const mediaSource = await getYouTubeMediaSource(song.url);
       ffmpegInput = mediaSource.url;
 
-      // Don't cache livestreams or long videos
-      const MAX_CACHE_LENGTH_SECONDS = 30 * 60; // 30 minutes
+      const MAX_CACHE_LENGTH_SECONDS = 30 * 60;
       shouldCacheVideo = !mediaSource.isLive && song.length < MAX_CACHE_LENGTH_SECONDS && !options.seek;
-
       debug(shouldCacheVideo ? 'Caching video' : 'Not caching video');
 
       ffmpegInputOptions.push(...[
@@ -589,6 +565,7 @@ export default class {
     }
 
     const disconnectedState = this.voiceConnection.state;
+
     if (disconnectedState.reason === VoiceConnectionDisconnectReason.WebSocketClose && disconnectedState.closeCode === 4014) {
       try {
         await Promise.race([
@@ -621,7 +598,6 @@ export default class {
     }
 
     await this.waitForVoiceConnectionReady(this.voiceConnection);
-
     return this.voiceConnection;
   }
 
@@ -630,13 +606,11 @@ export default class {
   }
 
   private async onAudioPlayerIdle(_oldState: AudioPlayerState, newState: AudioPlayerState): Promise<void> {
-    // Automatically advance queued song at end
     if (this.loopCurrentSong && newState.status === AudioPlayerStatus.Idle && this.status === STATUS.PLAYING) {
       await this.seek(0);
       return;
     }
 
-    // Automatically re-add current song to queue
     if (this.loopCurrentQueue && newState.status === AudioPlayerStatus.Idle && this.status === STATUS.PLAYING) {
       const currentSong = this.getCurrent();
 
@@ -653,28 +627,12 @@ export default class {
         return;
       }
 
-      try {
-        await this.forward(1);
-      } catch (error: unknown) {
-        debug(`Failed to advance queue: ${error instanceof Error ? error.message : String(error)}`);
-
-        // Keep the bot alive if automatic queue advancement hits an unavailable track.
-        if (this.canGoForward(1)) {
-          this.manualForward(1);
-          await this.play();
-          return;
-        }
-
-        await this.finishQueue();
-        return;
-      }
-
+      await this.forward(1);
       const currentSong = this.getCurrent();
       if (!currentSong) {
         return;
       }
 
-      // Auto announce the next song if configured to
       const settings = await getGuildSettings(this.guildId);
       const {autoAnnounceNextSong} = settings;
       if (autoAnnounceNextSong && this.currentChannel) {
@@ -694,8 +652,6 @@ export default class {
     const {secondsToWaitAfterQueueEmpties} = settings;
     if (secondsToWaitAfterQueueEmpties !== 0) {
       this.disconnectTimer = setTimeout(() => {
-        // Make sure we are not accidentally playing
-        // when disconnecting
         if (this.status === STATUS.IDLE) {
           this.disconnect();
         }
@@ -771,7 +727,6 @@ export default class {
   }
 
   private setAudioPlayerVolume(level?: number) {
-    // Audio resource expects a float between 0 and 1 to represent level percentage
     this.audioResource?.volume?.setVolume((level ?? this.getVolume()) / 100);
   }
 }
