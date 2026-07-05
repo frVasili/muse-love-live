@@ -29,7 +29,7 @@ export default class {
     try {
       return await this.scraper.getAlbum(uri.id, playlistLimit);
     } catch (error) {
-      const spotify = this.spotify;
+      const {spotify} = this;
 
       if (!spotify) {
         throw error;
@@ -49,7 +49,7 @@ export default class {
     try {
       return await this.scraper.getPlaylist(uri.id, playlistLimit);
     } catch (error) {
-      const spotify = this.spotify;
+      const {spotify} = this;
 
       if (!spotify) {
         throw error;
@@ -85,7 +85,7 @@ export default class {
     try {
       return await this.scraper.getTrack(uri.id);
     } catch (error) {
-      const spotify = this.spotify;
+      const {spotify} = this;
 
       if (!spotify) {
         throw error;
@@ -103,7 +103,7 @@ export default class {
     try {
       return await this.scraper.getArtist(uri.id, playlistLimit);
     } catch (error) {
-      const spotify = this.spotify;
+      const {spotify} = this;
 
       if (!spotify) {
         throw error;
