@@ -85,7 +85,6 @@ export default class {
   private disconnectTimer: NodeJS.Timeout | null = null;
   private readonly channelToSpeakingUsers: Map<string, Set<string>> = new Map();
   private hasRegisteredVoiceActivityListener = false;
-  private isRecoveringFromPlaybackError = false;
 
   constructor(fileCache: FileCacheProvider, guildId: string) {
     this.fileCache = fileCache;
@@ -259,22 +258,14 @@ export default class {
     } catch (error: unknown) {
       debug(`Failed to play ${currentSong.title}: ${error instanceof Error ? error.message : String(error)}`);
 
-      this.isRecoveringFromPlaybackError = true;
+      this.removeCurrent();
 
-      try {
-        this.removeCurrent();
-        this.positionInSeconds = 0;
-        this.stopTrackingPosition();
-
-        if (this.getCurrent() && this.status !== STATUS.PAUSED) {
-          await this.play();
-          return;
-        }
-
-        await this.finishQueue();
-      } finally {
-        this.isRecoveringFromPlaybackError = false;
+      if (this.getCurrent() && this.status !== STATUS.PAUSED) {
+        await this.play();
+        return;
       }
+
+      await this.finishQueue();
     }
   }
 
@@ -559,20 +550,12 @@ export default class {
       return;
     }
 
-    const {audioPlayer} = this;
-
-    if (!audioPlayer) {
+    if (!this.audioPlayer) {
       return;
     }
 
-    if (audioPlayer.listeners(AudioPlayerStatus.Idle).length === 0) {
-      audioPlayer.on(AudioPlayerStatus.Idle, async (oldState: AudioPlayerState, newState: AudioPlayerState) => {
-        if (audioPlayer !== this.audioPlayer) {
-          return;
-        }
-
-        await this.onAudioPlayerIdle(oldState, newState);
-      });
+    if (this.audioPlayer.listeners('stateChange').length === 0) {
+      this.audioPlayer.on(AudioPlayerStatus.Idle, this.onAudioPlayerIdle.bind(this));
     }
   }
 
@@ -623,10 +606,6 @@ export default class {
   }
 
   private async onAudioPlayerIdle(_oldState: AudioPlayerState, newState: AudioPlayerState): Promise<void> {
-    if (this.isRecoveringFromPlaybackError) {
-      return;
-    }
-
     if (this.loopCurrentSong && newState.status === AudioPlayerStatus.Idle && this.status === STATUS.PLAYING) {
       await this.seek(0);
       return;
