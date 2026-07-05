@@ -278,7 +278,6 @@ export default class {
       }
 
       await this.finishQueue();
-      return;
     }
   }
 
