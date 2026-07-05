@@ -559,11 +559,11 @@ export default class {
       return;
     }
 
-    if (!this.audioPlayer) {
+    const {audioPlayer} = this;
+
+    if (!audioPlayer) {
       return;
     }
-
-    const audioPlayer = this.audioPlayer;
 
     if (audioPlayer.listeners(AudioPlayerStatus.Idle).length === 0) {
       audioPlayer.on(AudioPlayerStatus.Idle, async (oldState: AudioPlayerState, newState: AudioPlayerState) => {
