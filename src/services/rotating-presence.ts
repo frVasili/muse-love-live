@@ -24,12 +24,14 @@ const playlistId = process.env.ROTATING_SPOTIFY_PLAYLIST_ID;
 const spotifyMarket = process.env.SPOTIFY_MARKET ?? 'US';
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
 
 let tracks: string[] = [];
 let lastRefresh = 0;
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
+
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -48,19 +50,26 @@ async function getSpotifyToken(): Promise<string> {
   }
 
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const body = refreshToken
+    ? new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }).toString()
+    : 'grant_type=client_credentials';
+
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: {
       Authorization: `Basic ${auth}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: 'grant_type=client_credentials',
+    body,
   });
 
   if (!res.ok) {
-    const body = await res.text();
+    const responseBody = await res.text();
     throw new Error(`Spotify token request failed: ${res.status}
-${body}`);
+${responseBody}`);
   }
 
   const data = (await res.json()) as SpotifyTokenResponse;
@@ -86,9 +95,9 @@ async function fetchPlaylistTracks(): Promise<string[]> {
 
     if (!res.ok) {
       // eslint-disable-next-line no-await-in-loop
-      const body = await res.text();
+      const responseBody = await res.text();
       throw new Error(`Spotify playlist request failed: ${res.status}
-${body}`);
+${responseBody}`);
     }
 
     // eslint-disable-next-line no-await-in-loop
@@ -101,6 +110,7 @@ ${body}`);
       const item = playlistItem.item ?? playlistItem.track;
       const name = item?.name;
       const artist = item?.artists?.map(a => a.name).filter(Boolean).join(', ');
+
       if (name) {
         found.push(shorten(artist ? `${name} — ${artist}` : name));
       }
@@ -114,11 +124,13 @@ ${body}`);
 
 async function refreshTracksIfNeeded(): Promise<void> {
   const now = Date.now();
+
   if (tracks.length > 0 && now - lastRefresh < refreshMinutes * 60 * 1000) {
     return;
   }
 
   const nextTracks = await fetchPlaylistTracks();
+
   if (nextTracks.length > 0) {
     tracks = nextTracks;
     lastRefresh = now;
@@ -135,9 +147,11 @@ export function startRotatingPresence(client: Client): void {
   }
 
   let index = 0;
+
   const update = async (): Promise<void> => {
     try {
       await refreshTracksIfNeeded();
+
       if (tracks.length === 0 || !client.user) {
         return;
       }
@@ -160,6 +174,7 @@ export function startRotatingPresence(client: Client): void {
   };
 
   void update();
+
   setInterval(() => {
     void update();
   }, Math.max(intervalSeconds, 60) * 1000);
