@@ -266,18 +266,19 @@ export default class {
         this.lastSongURL = currentSong.url;
       }
     } catch (error: unknown) {
-      await this.forward(1);
+      debug(`Failed to play ${currentSong.title}: ${error instanceof Error ? error.message : String(error)}`);
 
-      if ((error as {statusCode: number}).statusCode === 410 && currentSong) {
-        const channelId = currentSong.addedInChannelId;
-
-        if (channelId) {
-          debug(`${currentSong.title} is unavailable`);
-          return;
-        }
+      // If yt-dlp/ffmpeg cannot play the current track (for example: private, deleted,
+      // region-blocked, or copyright-blocked), skip it instead of letting the error
+      // bubble out and crash the Node process.
+      if (this.canGoForward(1)) {
+        this.manualForward(1);
+        await this.play();
+        return;
       }
 
-      throw error;
+      await this.finishQueue();
+      return;
     }
   }
 
@@ -653,7 +654,22 @@ export default class {
         return;
       }
 
-      await this.forward(1);
+      try {
+        await this.forward(1);
+      } catch (error: unknown) {
+        debug(`Failed to advance queue: ${error instanceof Error ? error.message : String(error)}`);
+
+        // Keep the bot alive if automatic queue advancement hits an unavailable track.
+        if (this.canGoForward(1)) {
+          this.manualForward(1);
+          await this.play();
+          return;
+        }
+
+        await this.finishQueue();
+        return;
+      }
+
       const currentSong = this.getCurrent();
       if (!currentSong) {
         return;
