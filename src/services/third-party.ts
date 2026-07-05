@@ -35,10 +35,9 @@ export default class ThirdParty {
   private async refreshSpotifyToken() {
     try {
       await pRetry(async () => {
-        const auth =
-          this.spotifyRefreshToken.length > 0
-            ? await this.spotify.refreshAccessToken()
-            : await this.spotify.clientCredentialsGrant();
+        const auth = this.spotifyRefreshToken.length > 0
+          ? await this.spotify.refreshAccessToken()
+          : await this.spotify.clientCredentialsGrant();
 
         this.spotify.setAccessToken(auth.body.access_token);
         this.scheduleSpotifyTokenRefresh((auth.body.expires_in / 2) * 1000);
