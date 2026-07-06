@@ -108,6 +108,7 @@ export default class {
       ],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
+      searchLimit: 25,
     });
   }
 
@@ -344,9 +345,16 @@ export default class {
     let score = 0;
 
     const titleMatch = title.includes(name);
+    const exactTitleMatch = title === name;
 
     if (titleMatch) {
       score += 160;
+    }
+
+    if (exactTitleMatch) {
+      score += 140;
+    } else if (title.startsWith(name)) {
+      score += 70;
     }
 
     if (channel.endsWith(' topic')) {
@@ -363,6 +371,10 @@ export default class {
 
     if (/\b(cover|karaoke|instrumental|remix|nightcore|reaction|live)\b/.test(title)) {
       score -= 60;
+    }
+
+    if (this.hasNonSongSignals(title, channel)) {
+      score -= 220;
     }
 
     if (track.durationMs) {
@@ -387,6 +399,13 @@ export default class {
     }
 
     return score;
+  }
+
+  private hasNonSongSignals(title: string, channel: string): boolean {
+    const text = `${title} ${channel}`;
+
+    return /\b(clip|clips|short|shorts|reaction|cover|karaoke|instrumental|remix|nightcore)\b/.test(text)
+      || /切り抜き|歌ってみた|踊ってみた|弾いてみた/.test(text);
   }
 
   private normalizeSearchText(value: string): string {
