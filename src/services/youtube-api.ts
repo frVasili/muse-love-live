@@ -1,6 +1,7 @@
 import {inject, injectable} from 'inversify';
 import {toSeconds, parse} from 'iso8601-duration';
 import got, {Got} from 'got';
+import ytsr from '@distube/ytsr';
 import {SongMetadata, QueuedPlaylist, MediaSource} from './player.js';
 import {TYPES} from '../types.js';
 import Config from './config.js';
@@ -59,6 +60,12 @@ interface SearchItem {
     videoId: string;
   };
 }
+
+type TrackSearchContext = {
+  name: string;
+  artist: string;
+  durationMs?: number;
+};
 
 @injectable()
 export default class {
@@ -211,11 +218,7 @@ export default class {
   private async searchBestVideo({queries, shouldSplitChapters, track, searchLimit = 10}: {
     queries: string[];
     shouldSplitChapters: boolean;
-    track?: {
-      name: string;
-      artist: string;
-      durationMs?: number;
-    };
+    track?: TrackSearchContext;
     searchLimit?: number;
   }): Promise<SongMetadata[]> {
     const seenIds = new Set<string>();
@@ -233,15 +236,20 @@ export default class {
       }
     }
 
-    if (ids.length === 0) {
-      return [];
+    let videos = ids.length > 0 ? await this.getVideosByID(ids) : [];
+
+    if (videos.length === 0 && track) {
+      videos = await this.searchScrapedVideos(queries, searchLimit);
     }
 
-    const videos = await this.getVideosByID(ids);
-    const ranked = ids
-      .map(id => videos.find(video => video.id === id))
-      .filter((video): video is VideoDetailsResponse => Boolean(video))
-      .sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
+    const ranked = ids.length > 0
+      ? ids
+        .map(id => videos.find(video => video.id === id))
+        .filter((video): video is VideoDetailsResponse => Boolean(video))
+      : videos;
+
+    ranked.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
+
     const bestVideo = ranked.at(0);
 
     return bestVideo
@@ -272,7 +280,51 @@ export default class {
       .filter(Boolean);
   }
 
-  private scoreVideo(video: VideoDetailsResponse, track?: {name: string; artist: string; durationMs?: number}): number {
+  private async searchScrapedVideos(queries: string[], limit: number): Promise<VideoDetailsResponse[]> {
+    const seenIds = new Set<string>();
+    const videos: VideoDetailsResponse[] = [];
+
+    for (const query of queries) {
+      let result: Awaited<ReturnType<typeof ytsr>>;
+
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        result = await ytsr(query, {type: 'video', limit});
+      } catch (_: unknown) {
+        continue;
+      }
+
+      for (const item of result.items) {
+        if (seenIds.has(item.id) || !item.duration) {
+          continue;
+        }
+
+        seenIds.add(item.id);
+        videos.push({
+          id: item.id,
+          contentDetails: {
+            videoId: item.id,
+            duration: `PT${parseTime(item.duration)}S`,
+          },
+          snippet: {
+            title: item.name,
+            channelTitle: item.author?.name ?? '',
+            liveBroadcastContent: item.isLive ? 'live' : 'none',
+            description: '',
+            thumbnails: {
+              medium: {
+                url: item.thumbnail,
+              },
+            },
+          },
+        });
+      }
+    }
+
+    return videos;
+  }
+
+  private scoreVideo(video: VideoDetailsResponse, track?: TrackSearchContext): number {
     if (!track) {
       return 0;
     }
