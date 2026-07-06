@@ -381,17 +381,7 @@ export default class {
       const expectedSeconds = Math.round(track.durationMs / 1000);
       const delta = Math.abs(toSeconds(parse(video.contentDetails.duration)) - expectedSeconds);
 
-      if (delta <= 1) {
-        score += 180;
-      } else if (delta <= 2) {
-        score += 140;
-      } else if (delta <= 3) {
-        score += 100;
-      } else if (delta <= 5) {
-        score += 50;
-      } else {
-        score -= Math.min(120, delta);
-      }
+      score += this.scoreDurationDelta(delta);
     }
 
     if (!titleMatch) {
@@ -399,6 +389,42 @@ export default class {
     }
 
     return score;
+  }
+
+  private scoreDurationDelta(delta: number): number {
+    if (delta <= 1) {
+      return 180;
+    }
+
+    if (delta <= 2) {
+      return 140;
+    }
+
+    if (delta <= 3) {
+      return 100;
+    }
+
+    if (delta <= 5) {
+      return 50;
+    }
+
+    if (delta <= 10) {
+      return 10;
+    }
+
+    if (delta <= 20) {
+      return -20;
+    }
+
+    if (delta <= 30) {
+      return -80;
+    }
+
+    if (delta <= 45) {
+      return -160;
+    }
+
+    return -260;
   }
 
   private hasNonSongSignals(title: string, channel: string): boolean {
