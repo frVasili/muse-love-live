@@ -268,7 +268,7 @@ export default class SpotifyScraper {
   }
 
   private extractDurationMs(value: Record<string, unknown>): number | undefined {
-    for (const key of ['durationMs', 'duration_ms', 'durationMilliseconds', 'trackDuration']) {
+    for (const key of ['durationMs', 'duration_ms', 'durationMilliseconds', 'trackDuration', 'duration']) {
       const duration = value[key];
 
       if (typeof duration === 'number' && duration > 0) {

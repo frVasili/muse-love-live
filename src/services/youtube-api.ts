@@ -108,6 +108,7 @@ export default class {
       ],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
+      searchLimit: 25,
     });
   }
 
@@ -207,7 +208,7 @@ export default class {
     return songsToReturn;
   }
 
-  private async searchBestVideo({queries, shouldSplitChapters, track}: {
+  private async searchBestVideo({queries, shouldSplitChapters, track, searchLimit = 10}: {
     queries: string[];
     shouldSplitChapters: boolean;
     track?: {
@@ -215,13 +216,14 @@ export default class {
       artist: string;
       durationMs?: number;
     };
+    searchLimit?: number;
   }): Promise<SongMetadata[]> {
     const seenIds = new Set<string>();
     const ids: string[] = [];
 
     for (const query of queries) {
       // eslint-disable-next-line no-await-in-loop
-      const searchIds = await this.searchVideoIds(query);
+      const searchIds = await this.searchVideoIds(query, searchLimit);
 
       for (const id of searchIds) {
         if (!seenIds.has(id)) {
@@ -247,13 +249,13 @@ export default class {
       : [];
   }
 
-  private async searchVideoIds(query: string): Promise<string[]> {
+  private async searchVideoIds(query: string, limit = 10): Promise<string[]> {
     const params = {
       searchParams: {
         part: 'snippet',
         q: query,
         type: 'video',
-        maxResults: '10',
+        maxResults: limit.toString(),
       },
     };
 
