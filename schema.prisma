@@ -49,3 +49,17 @@ model FavoriteQuery {
 
   @@unique([guildId, name])
 }
+
+model PlayerSession {
+  guildId           String   @id
+  voiceChannelId    String?
+  textChannelId     String?
+  status            Int
+  queue             String
+  queuePosition     Int      @default(0)
+  positionInSeconds Int      @default(0)
+  loopCurrentSong   Boolean  @default(false)
+  loopCurrentQueue  Boolean  @default(false)
+  volume            Int?
+  updatedAt         DateTime @updatedAt
+}

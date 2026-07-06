@@ -24,6 +24,7 @@ import {getGuildSettings} from '../utils/get-guild-settings.js';
 import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
 import {getYouTubeMediaSource} from '../utils/yt-dlp.js';
 import {Setting} from '@prisma/client';
+import {prisma} from '../utils/db.js';
 
 export enum MediaSource {
   Youtube,
@@ -50,6 +51,16 @@ export interface SongMetadata {
 export interface QueuedSong extends SongMetadata {
   addedInChannelId: Snowflake;
   requestedBy: string;
+}
+
+export interface SavedPlayerSession {
+  queue: QueuedSong[];
+  queuePosition: number;
+  positionInSeconds: number;
+  loopCurrentSong: boolean;
+  loopCurrentQueue: boolean;
+  volume: number | null;
+  status: STATUS;
 }
 
 export enum STATUS {
@@ -81,6 +92,8 @@ export default class {
   private playPositionInterval: NodeJS.Timeout | undefined;
   private lastSongURL = '';
   private positionInSeconds = 0;
+  private lastPersistedPosition = 0;
+  private persistSessionOperation: Promise<void> = Promise.resolve();
   private readonly fileCache: FileCacheProvider;
   private disconnectTimer: NodeJS.Timeout | null = null;
   private readonly channelToSpeakingUsers: Map<string, Set<string>> = new Map();
@@ -89,6 +102,19 @@ export default class {
   constructor(fileCache: FileCacheProvider, guildId: string) {
     this.fileCache = fileCache;
     this.guildId = guildId;
+  }
+
+  restoreSession(session: SavedPlayerSession): void {
+    this.queue = session.queue;
+    this.queuePosition = Math.min(session.queuePosition, Math.max(this.queue.length - 1, 0));
+    this.positionInSeconds = session.positionInSeconds;
+    this.lastPersistedPosition = session.positionInSeconds;
+    this.loopCurrentSong = session.loopCurrentSong;
+    this.loopCurrentQueue = session.loopCurrentQueue;
+    this.volume = session.volume ?? undefined;
+    this.status = session.status === STATUS.PLAYING ? STATUS.PAUSED : session.status;
+    this.nowPlaying = this.getCurrent();
+    this.lastSongURL = this.nowPlaying?.url ?? '';
   }
 
   async connect(channel: VoiceChannel): Promise<void> {
@@ -110,6 +136,7 @@ export default class {
     this.voiceConnection = voiceConnection;
     this.currentChannel = channel;
     this.hasRegisteredVoiceActivityListener = false;
+    this.persistSession();
 
     const guildSettings = await getGuildSettings(this.guildId);
     const stateTransitions = [voiceConnection.state.status];
@@ -153,6 +180,7 @@ export default class {
       this.currentChannel = undefined;
       this.channelToSpeakingUsers.clear();
       this.hasRegisteredVoiceActivityListener = false;
+      this.persistSession();
     }
   }
 
@@ -190,6 +218,7 @@ export default class {
     this.attachListeners();
     this.startTrackingPosition(positionSeconds);
     this.status = STATUS.PLAYING;
+    this.persistSession();
   }
 
   async forwardSeek(positionSeconds: number): Promise<void> {
@@ -218,6 +247,7 @@ export default class {
         this.audioPlayer.unpause();
         this.status = STATUS.PLAYING;
         this.startTrackingPosition();
+        this.persistSession();
         return;
       }
 
@@ -255,6 +285,8 @@ export default class {
         this.startTrackingPosition(0);
         this.lastSongURL = currentSong.url;
       }
+
+      this.persistSession();
     } catch (error: unknown) {
       debug(`Failed to play ${currentSong.title}: ${error instanceof Error ? error.message : String(error)}`);
 
@@ -281,6 +313,7 @@ export default class {
     }
 
     this.stopTrackingPosition();
+    this.persistSession();
   }
 
   async forward(skip: number): Promise<void> {
@@ -366,6 +399,7 @@ export default class {
       this.queuePosition += skip;
       this.positionInSeconds = 0;
       this.stopTrackingPosition();
+      this.persistSession();
     } else {
       throw new Error('No songs in queue to forward to.');
     }
@@ -380,6 +414,7 @@ export default class {
       this.queuePosition--;
       this.positionInSeconds = 0;
       this.stopTrackingPosition();
+      this.persistSession();
 
       if (this.status !== STATUS.PAUSED) {
         await this.play();
@@ -408,11 +443,14 @@ export default class {
       const insertAt = this.queuePosition + 1;
       this.queue = [...this.queue.slice(0, insertAt), song, ...this.queue.slice(insertAt)];
     }
+
+    this.persistSession();
   }
 
   shuffle(): void {
     const shuffledSongs = shuffle(this.queue.slice(this.queuePosition + 1));
     this.queue = [...this.queue.slice(0, this.queuePosition + 1), ...shuffledSongs];
+    this.persistSession();
   }
 
   clear(): void {
@@ -425,14 +463,17 @@ export default class {
 
     this.queuePosition = 0;
     this.queue = newQueue;
+    this.persistSession();
   }
 
   removeFromQueue(index: number, amount = 1): void {
     this.queue.splice(this.queuePosition + index, amount);
+    this.persistSession();
   }
 
   removeCurrent(): void {
     this.queue = [...this.queue.slice(0, this.queuePosition), ...this.queue.slice(this.queuePosition + 1)];
+    this.persistSession();
   }
 
   queueSize(): number {
@@ -447,6 +488,7 @@ export default class {
     this.disconnect();
     this.queuePosition = 0;
     this.queue = [];
+    this.deleteSession();
   }
 
   move(from: number, to: number): QueuedSong {
@@ -455,16 +497,85 @@ export default class {
     }
 
     this.queue.splice(this.queuePosition + to, 0, this.queue.splice(this.queuePosition + from, 1)[0]);
+    this.persistSession();
     return this.queue[this.queuePosition + to];
   }
 
   setVolume(level: number): void {
     this.volume = level;
     this.setAudioPlayerVolume(level);
+    this.persistSession();
   }
 
   getVolume(): number {
     return this.volume ?? this.defaultVolume;
+  }
+
+  setLoopCurrentSong(loop: boolean): void {
+    this.loopCurrentSong = loop;
+    if (loop) {
+      this.loopCurrentQueue = false;
+    }
+
+    this.persistSession();
+  }
+
+  setLoopCurrentQueue(loop: boolean): void {
+    this.loopCurrentQueue = loop;
+    if (loop) {
+      this.loopCurrentSong = false;
+    }
+
+    this.persistSession();
+  }
+
+  private persistSession(): void {
+    const current = this.getCurrent();
+    if (!current) {
+      this.deleteSession();
+      return;
+    }
+
+    const session = {
+      voiceChannelId: this.voiceConnection?.joinConfig.channelId ?? null,
+      textChannelId: current.addedInChannelId,
+      status: this.status,
+      queue: JSON.stringify(this.queue),
+      queuePosition: this.queuePosition,
+      positionInSeconds: this.positionInSeconds,
+      loopCurrentSong: this.loopCurrentSong,
+      loopCurrentQueue: this.loopCurrentQueue,
+      volume: this.volume ?? null,
+    };
+
+    this.enqueueSessionWrite(async () => prisma.playerSession.upsert({
+      where: {
+        guildId: this.guildId,
+      },
+      create: {
+        guildId: this.guildId,
+        ...session,
+      },
+      update: session,
+    }));
+  }
+
+  private deleteSession(): void {
+    this.enqueueSessionWrite(async () => prisma.playerSession.deleteMany({
+      where: {
+        guildId: this.guildId,
+      },
+    }));
+  }
+
+  private enqueueSessionWrite(operation: () => Promise<unknown>): void {
+    this.persistSessionOperation = this.persistSessionOperation
+      .then(async () => {
+        await operation();
+      })
+      .catch(error => {
+        debug(`Failed to update player session for ${this.guildId}: ${error instanceof Error ? error.message : String(error)}`);
+      });
   }
 
   private getHashForCache(url: string): string {
@@ -528,6 +639,7 @@ export default class {
   private startTrackingPosition(initalPosition?: number): void {
     if (initalPosition !== undefined) {
       this.positionInSeconds = initalPosition;
+      this.lastPersistedPosition = initalPosition;
     }
 
     if (this.playPositionInterval) {
@@ -536,6 +648,10 @@ export default class {
 
     this.playPositionInterval = setInterval(() => {
       this.positionInSeconds++;
+      if (this.positionInSeconds - this.lastPersistedPosition >= 15) {
+        this.lastPersistedPosition = this.positionInSeconds;
+        this.persistSession();
+      }
     }, 1000);
   }
 
@@ -646,6 +762,7 @@ export default class {
   private async finishQueue(): Promise<void> {
     this.status = STATUS.IDLE;
     this.audioPlayer?.stop(true);
+    this.persistSession();
 
     const settings = await getGuildSettings(this.guildId);
 

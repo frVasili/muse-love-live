@@ -15,6 +15,7 @@ import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v10';
 import registerCommandsOnGuild from './utils/register-commands-on-guild.js';
 import {startRotatingPresence} from './services/rotating-presence.js';
+import PlayerManager from './managers/player.js';
 
 @injectable()
 export default class {
@@ -150,6 +151,7 @@ export default class {
       });
 
       startRotatingPresence(this.client, this.config.ROTATING_SPOTIFY_PLAYLIST_ID);
+      await container.get<PlayerManager>(TYPES.Managers.Player).restoreActiveSessions(this.client);
 
       spinner.succeed(`Ready! Invite the bot with https://discordapp.com/oauth2/authorize?client_id=${this.client.user?.id ?? ''}&scope=bot%20applications.commands&permissions=36700160`);
     });
