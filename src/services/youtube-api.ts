@@ -223,10 +223,18 @@ export default class {
   }): Promise<SongMetadata[]> {
     const seenIds = new Set<string>();
     const ids: string[] = [];
+    let apiSearchFailed = false;
 
     for (const query of queries) {
-      // eslint-disable-next-line no-await-in-loop
-      const searchIds = await this.searchVideoIds(query, searchLimit);
+      let searchIds: string[];
+
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        searchIds = await this.searchVideoIds(query, searchLimit);
+      } catch (_: unknown) {
+        apiSearchFailed = true;
+        continue;
+      }
 
       for (const id of searchIds) {
         if (!seenIds.has(id)) {
@@ -236,9 +244,17 @@ export default class {
       }
     }
 
-    let videos = ids.length > 0 ? await this.getVideosByID(ids) : [];
+    let videos: VideoDetailsResponse[] = [];
 
-    if (videos.length === 0 && track) {
+    if (ids.length > 0) {
+      try {
+        videos = await this.getVideosByID(ids);
+      } catch (_: unknown) {
+        apiSearchFailed = true;
+      }
+    }
+
+    if (videos.length === 0 && (apiSearchFailed || track)) {
       videos = await this.searchScrapedVideos(queries, searchLimit);
     }
 

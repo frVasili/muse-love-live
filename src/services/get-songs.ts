@@ -180,6 +180,10 @@ export default class {
     // Count songs that couldn't be found
     const songs: SongMetadata[] = searchResults.reduce((accum: SongMetadata[], result) => {
       if (result.status === 'fulfilled') {
+        if (result.value.length === 0) {
+          nSongsNotFound++;
+        }
+
         for (const v of result.value) {
           accum.push({
             ...v,
