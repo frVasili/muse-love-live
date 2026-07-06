@@ -1,10 +1,7 @@
 import {ActivityType, Client, PresenceStatusData} from 'discord.js';
+import * as spotifyURI from 'spotify-uri';
 import SpotifyScraper from './spotify-scraper.js';
 
-const enabled = process.env.ROTATING_STATUS_ENABLED === 'true';
-const intervalSeconds = Number(process.env.ROTATING_STATUS_INTERVAL_SECONDS ?? 90);
-const refreshMinutes = Number(process.env.ROTATING_STATUS_REFRESH_MINUTES ?? 360);
-const playlistId = process.env.ROTATING_SPOTIFY_PLAYLIST_ID;
 const scraper = new SpotifyScraper();
 
 let tracks: string[] = [];
@@ -25,25 +22,37 @@ function shorten(input: string, max = 120): string {
   return input.length > max ? `${input.slice(0, max - 1)}...` : input;
 }
 
-async function fetchPlaylistTracks(): Promise<string[]> {
+function normalizePlaylistId(value: string): string {
+  try {
+    const parsed = spotifyURI.parse(value);
+
+    if (parsed.type === 'playlist') {
+      return (parsed as spotifyURI.Playlist).id;
+    }
+  } catch {}
+
+  return value.trim();
+}
+
+async function fetchPlaylistTracks(playlistId: string): Promise<string[]> {
   if (!playlistId) {
     throw new Error('Missing ROTATING_SPOTIFY_PLAYLIST_ID');
   }
 
-  const [spotifyTracks] = await scraper.getPlaylist(playlistId, Number.MAX_SAFE_INTEGER);
+  const [spotifyTracks] = await scraper.getPlaylist(normalizePlaylistId(playlistId), Number.MAX_SAFE_INTEGER);
   const found = spotifyTracks.map(track => shorten(`${track.name} by ${track.artist}`));
 
   return shuffle([...new Set(found)]);
 }
 
-async function refreshTracksIfNeeded(): Promise<void> {
+async function refreshTracksIfNeeded(playlistId: string, refreshMinutes: number): Promise<void> {
   const now = Date.now();
 
   if (tracks.length > 0 && now - lastRefresh < refreshMinutes * 60 * 1000) {
     return;
   }
 
-  const nextTracks = await fetchPlaylistTracks();
+  const nextTracks = await fetchPlaylistTracks(playlistId);
 
   if (nextTracks.length > 0) {
     tracks = nextTracks;
@@ -52,7 +61,11 @@ async function refreshTracksIfNeeded(): Promise<void> {
   }
 }
 
-export function startRotatingPresence(client: Client): void {
+export function startRotatingPresence(client: Client, playlistId: string): void {
+  const enabled = process.env.ROTATING_STATUS_ENABLED === 'true';
+  const intervalSeconds = Number(process.env.ROTATING_STATUS_INTERVAL_SECONDS ?? 90);
+  const refreshMinutes = Number(process.env.ROTATING_STATUS_REFRESH_MINUTES ?? 360);
+
   console.log(`Rotating presence startup: enabled=${String(enabled)}, interval=${intervalSeconds}, refresh=${refreshMinutes}, playlist=${playlistId ?? ''}`);
 
   if (!enabled) {
@@ -64,7 +77,7 @@ export function startRotatingPresence(client: Client): void {
 
   const update = async (): Promise<void> => {
     try {
-      await refreshTracksIfNeeded();
+      await refreshTracksIfNeeded(playlistId, refreshMinutes);
 
       if (tracks.length === 0 || !client.user) {
         return;

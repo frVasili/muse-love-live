@@ -149,7 +149,7 @@ export default class {
         status: this.config.BOT_STATUS,
       });
 
-      startRotatingPresence(this.client);
+      startRotatingPresence(this.client, this.config.ROTATING_SPOTIFY_PLAYLIST_ID);
 
       spinner.succeed(`Ready! Invite the bot with https://discordapp.com/oauth2/authorize?client_id=${this.client.user?.id ?? ''}&scope=bot%20applications.commands&permissions=36700160`);
     });

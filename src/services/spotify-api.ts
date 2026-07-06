@@ -4,7 +4,6 @@ import * as spotifyURI from 'spotify-uri';
 import Spotify from 'spotify-web-api-node';
 import {TYPES} from '../types.js';
 import ThirdParty from './third-party.js';
-import shuffle from 'array-shuffle';
 import {QueuedPlaylist} from './player.js';
 import SpotifyScraper, {SpotifyTrack} from './spotify-scraper.js';
 
@@ -129,10 +128,11 @@ export default class {
     return {
       name: track.name,
       artist: track.artists[0].name,
+      durationMs: track.duration_ms,
     };
   }
 
   private limitTracks(tracks: SpotifyApi.TrackObjectSimplified[], limit: number) {
-    return tracks.length > limit ? shuffle(tracks).slice(0, limit) : tracks;
+    return tracks.length > limit ? tracks.slice(0, limit) : tracks;
   }
 }

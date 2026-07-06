@@ -1,9 +1,9 @@
-import shuffle from 'array-shuffle';
 import {QueuedPlaylist} from './player.js';
 
 export interface SpotifyTrack {
   name: string;
   artist: string;
+  durationMs?: number;
 }
 
 type SpotifyEntityType = 'album' | 'artist' | 'playlist' | 'track';
@@ -257,11 +257,32 @@ export default class SpotifyScraper {
       return null;
     }
 
+    const durationMs = this.extractDurationMs(value);
+
     return {
       name: value.name,
       artist,
+      ...(durationMs === undefined ? {} : {durationMs}),
       key: uri ?? `${value.name}:${artist}`,
     };
+  }
+
+  private extractDurationMs(value: Record<string, unknown>): number | undefined {
+    for (const key of ['durationMs', 'duration_ms', 'durationMilliseconds', 'trackDuration']) {
+      const duration = value[key];
+
+      if (typeof duration === 'number' && duration > 0) {
+        return duration;
+      }
+    }
+
+    const duration = this.readPath(value, ['duration', 'totalMilliseconds']);
+
+    if (typeof duration === 'number' && duration > 0) {
+      return duration;
+    }
+
+    return undefined;
   }
 
   private extractArtist(value: Record<string, unknown>): string | null {
@@ -351,6 +372,6 @@ export default class SpotifyScraper {
   }
 
   private limitTracks<T extends SpotifyTrack>(tracks: T[], limit: number): T[] {
-    return tracks.length > limit ? shuffle(tracks).slice(0, limit) : tracks;
+    return tracks.length > limit ? tracks.slice(0, limit) : tracks;
   }
 }

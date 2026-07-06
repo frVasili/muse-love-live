@@ -80,39 +80,27 @@ export default class {
   }
 
   async search(query: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
-    const params = {
-      searchParams: {
-        part: 'snippet',
-        q: query,
-        type: 'video',
-        maxResults: '10',
-      },
-    };
+    return this.searchBestVideo({
+      queries: [query],
+      shouldSplitChapters,
+    });
+  }
 
-    const {items} = await this.cache.wrap(
-      async () => this.got('search', params).json() as Promise<SearchResponse>,
-      params,
-      {
-        expiresIn: ONE_HOUR_IN_SECONDS,
-      },
-    );
-
-    const ids = items
-      .map(item => item.id.videoId)
-      .filter(Boolean);
-
-    if (ids.length === 0) {
-      return [];
-    }
-
-    const videos = await this.getVideosByID(ids);
-    const firstVideo = ids
-      .map(id => videos.find(video => video.id === id))
-      .find(Boolean);
-
-    return firstVideo
-      ? this.getMetadataFromVideo({video: firstVideo, shouldSplitChapters})
-      : [];
+  async searchSpotifyTrack({name, artist, durationMs, shouldSplitChapters}: {
+    name: string;
+    artist: string;
+    durationMs?: number;
+    shouldSplitChapters: boolean;
+  }): Promise<SongMetadata[]> {
+    return this.searchBestVideo({
+      queries: [
+        `"${name}" "${artist}" topic`,
+        `"${name}" "${artist}"`,
+        `${name} ${artist} official audio`,
+      ],
+      shouldSplitChapters,
+      track: {name, artist, durationMs},
+    });
   }
 
   async getVideo(url: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
@@ -209,6 +197,127 @@ export default class {
     }
 
     return songsToReturn;
+  }
+
+  private async searchBestVideo({queries, shouldSplitChapters, track}: {
+    queries: string[];
+    shouldSplitChapters: boolean;
+    track?: {
+      name: string;
+      artist: string;
+      durationMs?: number;
+    };
+  }): Promise<SongMetadata[]> {
+    const seenIds = new Set<string>();
+    const ids: string[] = [];
+
+    for (const query of queries) {
+      // eslint-disable-next-line no-await-in-loop
+      const searchIds = await this.searchVideoIds(query);
+
+      for (const id of searchIds) {
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          ids.push(id);
+        }
+      }
+    }
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const videos = await this.getVideosByID(ids);
+    const ranked = ids
+      .map(id => videos.find(video => video.id === id))
+      .filter((video): video is VideoDetailsResponse => Boolean(video))
+      .sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
+    const bestVideo = ranked.at(0);
+
+    return bestVideo
+      ? this.getMetadataFromVideo({video: bestVideo, shouldSplitChapters})
+      : [];
+  }
+
+  private async searchVideoIds(query: string): Promise<string[]> {
+    const params = {
+      searchParams: {
+        part: 'snippet',
+        q: query,
+        type: 'video',
+        maxResults: '10',
+      },
+    };
+
+    const {items} = await this.cache.wrap(
+      async () => this.got('search', params).json() as Promise<SearchResponse>,
+      params,
+      {
+        expiresIn: ONE_HOUR_IN_SECONDS,
+      },
+    );
+
+    return items
+      .map(item => item.id.videoId)
+      .filter(Boolean);
+  }
+
+  private scoreVideo(video: VideoDetailsResponse, track?: {name: string; artist: string; durationMs?: number}): number {
+    if (!track) {
+      return 0;
+    }
+
+    const title = this.normalizeSearchText(video.snippet.title);
+    const channel = this.normalizeSearchText(video.snippet.channelTitle);
+    const name = this.normalizeSearchText(track.name);
+    const artist = this.normalizeSearchText(track.artist);
+    let score = 0;
+
+    if (channel.endsWith(' topic')) {
+      score += 100;
+    }
+
+    if (channel === `${artist} topic` || channel.includes(`${artist} topic`)) {
+      score += 80;
+    }
+
+    if (title.includes(name)) {
+      score += 60;
+    }
+
+    if (title.includes(artist) || channel.includes(artist)) {
+      score += 30;
+    }
+
+    if (/\b(cover|karaoke|instrumental|remix|nightcore|reaction|live)\b/.test(title)) {
+      score -= 60;
+    }
+
+    if (track.durationMs) {
+      const expectedSeconds = Math.round(track.durationMs / 1000);
+      const delta = Math.abs(toSeconds(parse(video.contentDetails.duration)) - expectedSeconds);
+
+      if (delta <= 3) {
+        score += 80;
+      } else if (delta <= 8) {
+        score += 45;
+      } else if (delta <= 15) {
+        score += 15;
+      } else {
+        score -= Math.min(80, delta);
+      }
+    }
+
+    return score;
+  }
+
+  private normalizeSearchText(value: string): string {
+    return value
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
   }
 
   private getMetadataFromVideo({

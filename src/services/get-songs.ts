@@ -55,7 +55,7 @@ export default class {
         const [convertedSongs, nSongsNotFound, totalSongs] = await this.spotifySource(query, playlistLimit, shouldSplitChapters);
 
         if (totalSongs > playlistLimit) {
-          extraMsg = `a random sample of ${playlistLimit} songs was taken`;
+          extraMsg = `the first ${playlistLimit} songs were added`;
         }
 
         if (totalSongs > playlistLimit && nSongsNotFound !== 0) {
@@ -167,7 +167,12 @@ export default class {
   }
 
   private async spotifyToYouTube(tracks: SpotifyTrack[], shouldSplitChapters: boolean, playlist?: QueuedPlaylist | undefined): Promise<[SongMetadata[], number, number]> {
-    const promisedResults = tracks.map(async track => this.youtubeAPI.search(`"${track.name}" "${track.artist}"`, shouldSplitChapters));
+    const promisedResults = tracks.map(async track => this.youtubeAPI.searchSpotifyTrack({
+      name: track.name,
+      artist: track.artist,
+      durationMs: track.durationMs,
+      shouldSplitChapters,
+    }));
     const searchResults = await Promise.allSettled(promisedResults);
 
     let nSongsNotFound = 0;
