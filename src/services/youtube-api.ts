@@ -357,6 +357,10 @@ export default class {
       score += 70;
     }
 
+    if (titleMatch) {
+      score += this.scoreExtraTitleText(title, name);
+    }
+
     if (channel.endsWith(' topic')) {
       score += 30;
     }
@@ -427,11 +431,29 @@ export default class {
     return -260;
   }
 
+  private scoreExtraTitleText(title: string, name: string): number {
+    const extraTextLength = title.replace(name, '').trim().length;
+
+    if (extraTextLength <= 6) {
+      return 0;
+    }
+
+    if (extraTextLength <= 18) {
+      return -30;
+    }
+
+    if (extraTextLength <= 35) {
+      return -80;
+    }
+
+    return -140;
+  }
+
   private hasNonSongSignals(title: string, channel: string): boolean {
     const text = `${title} ${channel}`;
 
-    return /\b(clip|clips|short|shorts|reaction|cover|karaoke|instrumental|remix|nightcore)\b/.test(text)
-      || /切り抜き|歌ってみた|踊ってみた|弾いてみた/.test(text);
+    return /\b(clip|clips|short|shorts|reaction|cover|karaoke|instrumental|remix|nightcore|comparison|compared|vs)\b/.test(text)
+      || /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d/.test(text);
   }
 
   private normalizeSearchText(value: string): string {
