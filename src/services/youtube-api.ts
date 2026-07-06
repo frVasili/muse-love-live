@@ -97,11 +97,13 @@ export default class {
 
     return this.searchBestVideo({
       queries: [
+        `"${normalizedName}" topic`,
+        `"${normalizedName}"`,
+        `${normalizedName} official audio`,
         `"${normalizedName}" "${normalizedArtist}" topic`,
         `"${normalizedName}" "${normalizedArtist}"`,
         `${normalizedName} ${normalizedArtist} official audio`,
         `${normalizedName} ${normalizedArtist}`,
-        `"${normalizedName}" official audio`,
         normalizedName,
       ],
       shouldSplitChapters,
@@ -279,20 +281,22 @@ export default class {
     const artist = this.normalizeSearchText(track.artist);
     let score = 0;
 
+    const titleMatch = title.includes(name);
+
+    if (titleMatch) {
+      score += 160;
+    }
+
     if (channel.endsWith(' topic')) {
-      score += 100;
+      score += 30;
     }
 
     if (channel === `${artist} topic` || channel.includes(`${artist} topic`)) {
-      score += 80;
-    }
-
-    if (title.includes(name)) {
-      score += 60;
+      score += 10;
     }
 
     if (title.includes(artist) || channel.includes(artist)) {
-      score += 30;
+      score += 5;
     }
 
     if (/\b(cover|karaoke|instrumental|remix|nightcore|reaction|live)\b/.test(title)) {
@@ -303,15 +307,21 @@ export default class {
       const expectedSeconds = Math.round(track.durationMs / 1000);
       const delta = Math.abs(toSeconds(parse(video.contentDetails.duration)) - expectedSeconds);
 
-      if (delta <= 3) {
-        score += 80;
-      } else if (delta <= 8) {
-        score += 45;
-      } else if (delta <= 15) {
-        score += 15;
+      if (delta <= 1) {
+        score += 180;
+      } else if (delta <= 2) {
+        score += 140;
+      } else if (delta <= 3) {
+        score += 100;
+      } else if (delta <= 5) {
+        score += 50;
       } else {
-        score -= Math.min(80, delta);
+        score -= Math.min(120, delta);
       }
+    }
+
+    if (!titleMatch) {
+      score -= 250;
     }
 
     return score;
