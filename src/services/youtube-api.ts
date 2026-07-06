@@ -92,14 +92,20 @@ export default class {
     durationMs?: number;
     shouldSplitChapters: boolean;
   }): Promise<SongMetadata[]> {
+    const normalizedName = name.trim();
+    const normalizedArtist = artist.trim();
+
     return this.searchBestVideo({
       queries: [
-        `"${name}" "${artist}" topic`,
-        `"${name}" "${artist}"`,
-        `${name} ${artist} official audio`,
+        `"${normalizedName}" "${normalizedArtist}" topic`,
+        `"${normalizedName}" "${normalizedArtist}"`,
+        `${normalizedName} ${normalizedArtist} official audio`,
+        `${normalizedName} ${normalizedArtist}`,
+        `"${normalizedName}" official audio`,
+        normalizedName,
       ],
       shouldSplitChapters,
-      track: {name, artist, durationMs},
+      track: {name: normalizedName, artist: normalizedArtist, durationMs},
     });
   }
 

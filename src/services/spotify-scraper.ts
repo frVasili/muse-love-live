@@ -289,13 +289,13 @@ export default class SpotifyScraper {
     const directArtists = this.collectNames(value.artists);
 
     if (directArtists.length > 0) {
-      return directArtists.join(', ');
+      return directArtists[0];
     }
 
     const firstArtist = this.collectNames(value.firstArtist);
 
     if (firstArtist.length > 0) {
-      return firstArtist.join(', ');
+      return firstArtist[0];
     }
 
     return null;
