@@ -104,18 +104,10 @@ export default class {
 
     return this.searchBestVideo({
       queries: [
-        `"${normalizedName}" topic`,
-        `"${normalizedName}"`,
-        `${normalizedName} official audio`,
-        `"${normalizedName}" "${normalizedArtist}" topic`,
         `"${normalizedName}" "${normalizedArtist}"`,
-        `${normalizedName} ${normalizedArtist} official audio`,
-        `${normalizedName} ${normalizedArtist}`,
-        normalizedName,
       ],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
-      searchLimit: 25,
     });
   }
 
