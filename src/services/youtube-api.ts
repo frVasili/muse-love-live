@@ -9,6 +9,8 @@ import KeyValueCacheProvider from './key-value-cache.js';
 import {ONE_HOUR_IN_SECONDS, ONE_MINUTE_IN_SECONDS} from '../utils/constants.js';
 import {parseTime} from '../utils/time.js';
 import getYouTubeID from 'get-youtube-id';
+import {getSpotifyTitleMatch, hasNonSongSignals, hasSpotifyVideoPenaltySignals, isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed} from '../utils/spotify-video-match.js';
+import type {TrackSearchContext} from '../utils/spotify-video-match.js';
 
 interface VideoDetailsResponse {
   id: string;
@@ -61,12 +63,6 @@ interface SearchItem {
   };
 }
 
-type TrackSearchContext = {
-  name: string;
-  artist: string;
-  durationMs?: number;
-};
-
 @injectable()
 export default class {
   private readonly youtubeKey: string;
@@ -105,6 +101,7 @@ export default class {
     return this.searchBestVideo({
       queries: [
         `"${normalizedName}" "${normalizedArtist}"`,
+        `"${normalizedName}"`,
       ],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
@@ -257,9 +254,13 @@ export default class {
         .filter((video): video is VideoDetailsResponse => Boolean(video))
       : videos;
 
-    ranked.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
+    const candidates = track
+      ? ranked.filter(video => isSpotifyVideoCandidateAllowed(video, track) && this.isSpotifyDurationCandidateAllowed(video, track))
+      : ranked;
 
-    const bestVideo = ranked.at(0);
+    candidates.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
+
+    const bestVideo = candidates.at(0);
 
     return bestVideo
       ? this.getMetadataFromVideo({video: bestVideo, shouldSplitChapters})
@@ -338,14 +339,8 @@ export default class {
       return 0;
     }
 
-    const title = this.normalizeSearchText(video.snippet.title);
-    const channel = this.normalizeSearchText(video.snippet.channelTitle);
-    const name = this.normalizeSearchText(track.name);
-    const artist = this.normalizeSearchText(track.artist);
+    const {title, channel, name, artist, titleMatch, exactTitleMatch} = getSpotifyTitleMatch(video, track);
     let score = 0;
-
-    const titleMatch = title.includes(name);
-    const exactTitleMatch = title === name;
 
     if (titleMatch) {
       score += 160;
@@ -373,11 +368,11 @@ export default class {
       score += 5;
     }
 
-    if (/\b(cover|karaoke|instrumental|remix|nightcore|reaction|live)\b/.test(title)) {
+    if (hasSpotifyVideoPenaltySignals(title)) {
       score -= 60;
     }
 
-    if (this.hasNonSongSignals(title, channel)) {
+    if (hasNonSongSignals(title, channel)) {
       score -= 220;
     }
 
@@ -431,6 +426,10 @@ export default class {
     return -260;
   }
 
+  private isSpotifyDurationCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext): boolean {
+    return isSpotifyDurationCandidateAllowed(toSeconds(parse(video.contentDetails.duration)), track);
+  }
+
   private scoreExtraTitleText(title: string, name: string): number {
     const extraTextLength = title.replace(name, '').trim().length;
 
@@ -447,22 +446,6 @@ export default class {
     }
 
     return -140;
-  }
-
-  private hasNonSongSignals(title: string, channel: string): boolean {
-    const text = `${title} ${channel}`;
-
-    return /\b(clip|clips|short|shorts|reaction|cover|karaoke|instrumental|remix|nightcore|comparison|compared|vs)\b/.test(text)
-      || /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d/.test(text);
-  }
-
-  private normalizeSearchText(value: string): string {
-    return value
-      .normalize('NFKC')
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .trim()
-      .replace(/\s+/g, ' ');
   }
 
   private getMetadataFromVideo({

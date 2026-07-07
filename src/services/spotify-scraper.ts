@@ -276,7 +276,8 @@ export default class SpotifyScraper {
       }
     }
 
-    const duration = this.readPath(value, ['duration', 'totalMilliseconds']);
+    const duration = this.readPath(value, ['duration', 'totalMilliseconds'])
+      ?? this.readPath(value, ['trackDuration', 'totalMilliseconds']);
 
     if (typeof duration === 'number' && duration > 0) {
       return duration;
