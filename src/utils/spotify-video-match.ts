@@ -18,8 +18,6 @@ const LIVE_UPLOAD_REJECT_SIGNALS = /\b(live at|live from|live version|live perfo
 const UNOFFICIAL_NON_ASCII_SIGNALS = /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d|\u30ab\u30e9\u30aa\u30b1|\u30ac\u30a4\u30c9\u306a\u3057|\u6b4c\u8a5e|\u8010\u4e45|\u30aa\u30eb\u30b4\u30fc\u30eb|\u30d4\u30a2\u30ce|\u30e9\u30a4\u30d6\u6620\u50cf|\u6f14\u594f\u3057\u3066\u307f\u305f/;
 const NON_AUDIO_VERSION_SIGNALS = /\b(off vocal|off-vocal|tv size|tv-size|game size|game-size|full combo)\b/;
 const OFFICIAL_TITLE_TEXT = /\b(official|audio|video|music|mv|lyric|lyrics|visualizer|topic|provided to youtube by)\b/g;
-const OFFICIAL_CHANNEL_SIGNALS = /\btopic\b|\blove live series\b|\u30e9\u30d6\u30e9\u30a4\u30d6/;
-const OFFICIAL_TITLE_SIGNALS = /\bofficial\b/;
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -58,9 +56,6 @@ export const hasNonSongSignals = (title: string, channel: string): boolean => {
 
 export const hasSpotifyVideoPenaltySignals = (title: string): boolean => UNOFFICIAL_PENALTY_SIGNALS.test(title);
 
-export const hasOfficialSourceSignals = (title: string, channel: string): boolean => OFFICIAL_CHANNEL_SIGNALS.test(channel)
-  || OFFICIAL_TITLE_SIGNALS.test(title);
-
 export const isSpotifyDurationCandidateAllowed = (candidateSeconds: number, track: TrackSearchContext): boolean => {
   if (!track.durationMs) {
     return true;
@@ -96,7 +91,7 @@ export const getSpotifyTitleMatch = (video: SpotifyVideoCandidate, track: TrackS
     name,
     artist,
     titleMatch,
-    exactTitleMatch: title === name || titleWithoutArtist === name,
+    exactTitleMatch: titleMatch,
   };
 };
 
@@ -107,5 +102,5 @@ export const isSpotifyVideoCandidateAllowed = (video: SpotifyVideoCandidate, tra
     return false;
   }
 
-  return !hasNonSongSignals(title, channel) && hasOfficialSourceSignals(title, channel);
+  return !hasNonSongSignals(title, channel);
 };

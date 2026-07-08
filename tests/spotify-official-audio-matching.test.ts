@@ -34,7 +34,7 @@ assert.equal(
 );
 
 assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Snow halation', 'Love Live! series'), track('Snow halation', 'Spotify Artist')),
+  isSpotifyVideoCandidateAllowed(video('Snow halation', 'Official Artist Channel'), track('Snow halation', 'Spotify Artist')),
   true,
   'does not require Spotify artist names to match YouTube channel names',
 );
@@ -46,9 +46,9 @@ assert.equal(
 );
 
 assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects exact-title uploads without official source signals',
+  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole', 'Different Artist Channel'), track('Supermassive Black Hole')),
+  true,
+  'allows exact-title uploads even when channel names do not match Spotify',
 );
 
 assert.equal(

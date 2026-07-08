@@ -7,6 +7,8 @@ import YoutubeAPI from './youtube-api.js';
 import SpotifyAPI, {SpotifyTrack} from './spotify-api.js';
 import {URL} from 'node:url';
 
+type SpotifyConversionResult = [SongMetadata[], string[], number];
+
 @injectable()
 export default class {
   private readonly youtubeAPI: YoutubeAPI;
@@ -52,7 +54,8 @@ export default class {
           throw new Error('Spotify support is unavailable!');
         }
 
-        const [convertedSongs, nSongsNotFound, totalSongs] = await this.spotifySource(query, playlistLimit, shouldSplitChapters);
+        const [convertedSongs, songsNotFound, totalSongs] = await this.spotifySource(query, playlistLimit, shouldSplitChapters);
+        const nSongsNotFound = songsNotFound.length;
 
         if (totalSongs > playlistLimit) {
           extraMsg = `the first ${playlistLimit} songs were added`;
@@ -64,9 +67,9 @@ export default class {
 
         if (nSongsNotFound !== 0) {
           if (nSongsNotFound === 1) {
-            extraMsg += '1 song was not found';
+            extraMsg += `1 song was not found: ${songsNotFound[0]}`;
           } else {
-            extraMsg += `${nSongsNotFound.toString()} songs were not found`;
+            extraMsg += `${nSongsNotFound.toString()} songs were not found: ${this.formatSongList(songsNotFound)}`;
           }
         }
 
@@ -110,9 +113,9 @@ export default class {
     return this.youtubeAPI.getPlaylist(listId, shouldSplitChapters);
   }
 
-  private async spotifySource(url: string, playlistLimit: number, shouldSplitChapters: boolean): Promise<[SongMetadata[], number, number]> {
+  private async spotifySource(url: string, playlistLimit: number, shouldSplitChapters: boolean): Promise<SpotifyConversionResult> {
     if (this.spotifyAPI === undefined) {
-      return [[], 0, 0];
+      return [[], [], 0];
     }
 
     const parsed = spotifyURI.parse(url);
@@ -139,7 +142,7 @@ export default class {
       }
 
       default: {
-        return [[], 0, 0];
+        return [[], [], 0];
       }
     }
   }
@@ -166,7 +169,7 @@ export default class {
     });
   }
 
-  private async spotifyToYouTube(tracks: SpotifyTrack[], shouldSplitChapters: boolean, playlist?: QueuedPlaylist | undefined): Promise<[SongMetadata[], number, number]> {
+  private async spotifyToYouTube(tracks: SpotifyTrack[], shouldSplitChapters: boolean, playlist?: QueuedPlaylist | undefined): Promise<SpotifyConversionResult> {
     const promisedResults = tracks.map(async track => this.youtubeAPI.searchSpotifyTrack({
       name: track.name,
       artist: track.artist,
@@ -175,13 +178,13 @@ export default class {
     }));
     const searchResults = await Promise.allSettled(promisedResults);
 
-    let nSongsNotFound = 0;
+    const songsNotFound: string[] = [];
 
     // Count songs that couldn't be found
-    const songs: SongMetadata[] = searchResults.reduce((accum: SongMetadata[], result) => {
+    const songs: SongMetadata[] = searchResults.reduce((accum: SongMetadata[], result, index) => {
       if (result.status === 'fulfilled') {
         if (result.value.length === 0) {
-          nSongsNotFound++;
+          songsNotFound.push(this.formatSpotifyTrack(tracks[index]));
         }
 
         for (const v of result.value) {
@@ -191,12 +194,26 @@ export default class {
           });
         }
       } else {
-        nSongsNotFound++;
+        songsNotFound.push(this.formatSpotifyTrack(tracks[index]));
       }
 
       return accum;
     }, []);
 
-    return [songs, nSongsNotFound, tracks.length];
+    return [songs, songsNotFound, tracks.length];
+  }
+
+  private formatSpotifyTrack(track: SpotifyTrack): string {
+    return `${track.name} - ${track.artist}`;
+  }
+
+  private formatSongList(songs: string[]): string {
+    const maxSongsToList = 8;
+    const listedSongs = songs.slice(0, maxSongsToList).join(', ');
+    const remainingSongs = songs.length - maxSongsToList;
+
+    return remainingSongs > 0
+      ? `${listedSongs}, and ${remainingSongs.toString()} more`
+      : listedSongs;
   }
 }
