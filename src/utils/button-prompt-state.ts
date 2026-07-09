@@ -13,20 +13,21 @@ export type PendingButtonPromptResult = {
   nextState: PendingButtonPromptState;
 };
 
-export const finalizeTimedOutPrompt = (state: PendingButtonPromptState, now = Date.now()): PendingButtonPromptState | null => {
+export const finalizeTimedOutPrompt = <T extends PendingButtonPromptState>(state: T, now = Date.now()): T | null => {
   if (state.status !== 'pending' || now < state.expiresAt) {
     return null;
   }
 
-  return {
+  const nextState: T = {
     ...state,
     status: 'selected',
     selectedIndex: state.fallbackIndex,
     timedOut: true,
   };
+  return nextState;
 };
 
-export const applyPromptChoice = (state: PendingButtonPromptState, actingUserId: string, choice: string, now = Date.now()): PendingButtonPromptResult => {
+export const applyPromptChoice = <T extends PendingButtonPromptState>(state: T, actingUserId: string, choice: string, now = Date.now()): {error?: string; nextState: T} => {
   if (state.status !== 'pending' || now >= state.expiresAt) {
     return {
       error: 'that prompt already expired',
@@ -42,11 +43,12 @@ export const applyPromptChoice = (state: PendingButtonPromptState, actingUserId:
   }
 
   if (choice === 'cancel') {
+    const nextState: T = {
+      ...state,
+      status: 'cancelled',
+    };
     return {
-      nextState: {
-        ...state,
-        status: 'cancelled',
-      },
+      nextState,
     };
   }
 
@@ -59,12 +61,13 @@ export const applyPromptChoice = (state: PendingButtonPromptState, actingUserId:
     };
   }
 
+  const nextState: T = {
+    ...state,
+    status: 'selected',
+    selectedIndex,
+    timedOut: false,
+  };
   return {
-    nextState: {
-      ...state,
-      status: 'selected',
-      selectedIndex,
-      timedOut: false,
-    },
+    nextState,
   };
 };
