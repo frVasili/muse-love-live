@@ -2,7 +2,6 @@ import {ChatInputCommandInteraction, GuildMember} from 'discord.js';
 import {inject, injectable} from 'inversify';
 import shuffle from 'array-shuffle';
 import {SponsorBlock} from 'sponsorblock-api';
-import pLimit from 'p-limit';
 import {TYPES} from '../types.js';
 import GetSongs from '../services/get-songs.js';
 import Player, {MediaSource, SongMetadata, STATUS} from './player.js';
@@ -15,18 +14,16 @@ import Config from './config.js';
 import KeyValueCacheProvider from './key-value-cache.js';
 import {ONE_HOUR_IN_SECONDS, TWENTY_SECONDS_IN_SECONDS} from '../utils/constants.js';
 import ButtonChoicePrompt, {ButtonPromptConfig} from './button-choice-prompt.js';
-import SpotifyTrackResolver from './spotify-track-resolver.js';
 import type {SongSelectionCandidate} from './youtube-api.js';
 import type {SpotifyTrack} from './spotify-api.js';
 import {prettyTime} from '../utils/time.js';
+import SpotifyQueueResolver from './spotify-queue-resolver.js';
 
 type QueueResolution = {
   extraMsg: string;
   songs: SongMetadata[];
   uncertainSpotifyTracks: SpotifyTrack[];
 };
-
-const SPOTIFY_TRACK_RESOLVE_CONCURRENCY = 4;
 
 @injectable()
 export default class AddQueryToQueue {
@@ -40,7 +37,7 @@ export default class AddQueryToQueue {
     @inject(TYPES.Config) private readonly config: Config,
     @inject(TYPES.KeyValueCache) cache: KeyValueCacheProvider,
     @inject(TYPES.Services.ButtonChoicePrompt) private readonly buttonChoicePrompt: ButtonChoicePrompt,
-    @inject(TYPES.Services.SpotifyTrackResolver) private readonly spotifyTrackResolver: SpotifyTrackResolver) {
+    @inject(TYPES.Services.SpotifyQueueResolver) private readonly spotifyQueueResolver: SpotifyQueueResolver) {
     this.sponsorBlockTimeoutDelay = config.SPONSORBLOCK_TIMEOUT;
     this.sponsorBlock = config.ENABLE_SPONSORBLOCK
       ? new SponsorBlock('muse-sb-integration') // UserID matters only for submissions
@@ -237,43 +234,15 @@ export default class AddQueryToQueue {
   }
 
   private async resolveSpotifyQuery(query: string, playlistLimit: number, shouldSplitChapters: boolean): Promise<QueueResolution> {
-    const [tracks, playlist] = await this.getSongs.getSpotifyTracks(query, playlistLimit);
-    const limit = pLimit(SPOTIFY_TRACK_RESOLVE_CONCURRENCY);
-    const resolutions = await Promise.all(tracks.map(async track => limit(
-      async () => this.spotifyTrackResolver.resolve(track, shouldSplitChapters, playlist),
-    )));
-
-    const songsByTrack: SongMetadata[][] = tracks.map(() => []);
-    const songsNotFound: string[] = [];
-    const uncertainSpotifyTracks: SpotifyTrack[] = [];
-    let autoMatchedCount = 0;
-
-    for (const [index, resolution] of resolutions.entries()) {
-      if (resolution.status === 'saved' || resolution.status === 'high-confidence') {
-        songsByTrack[index] = resolution.songs;
-        autoMatchedCount++;
-        continue;
-      }
-
-      if (resolution.status === 'uncertain' && resolution.candidates.length > 0) {
-        const topCandidate = resolution.candidates[0];
-        songsByTrack[index] = this.spotifyTrackResolver.attachSpotifyOrigin(
-          tracks[index],
-          topCandidate.songs,
-          'timeout-top',
-          playlist,
-        );
-        uncertainSpotifyTracks.push(tracks[index]);
-        continue;
-      }
-
-      songsNotFound.push(this.formatSpotifyTrack(tracks[index]));
-    }
+    const resolution = await this.spotifyQueueResolver.resolveQuery(query, playlistLimit, shouldSplitChapters);
 
     return {
-      songs: songsByTrack.flat(),
-      extraMsg: this.buildSpotifySummary({autoMatchedCount, songsNotFound}),
-      uncertainSpotifyTracks,
+      songs: resolution.songs,
+      extraMsg: this.buildSpotifySummary({
+        autoMatchedCount: resolution.autoMatchedCount,
+        songsNotFound: resolution.songsNotFound.map(track => this.formatSpotifyTrack(track)),
+      }),
+      uncertainSpotifyTracks: resolution.uncertainSpotifyTracks,
     };
   }
 

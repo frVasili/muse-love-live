@@ -15,6 +15,7 @@ import GetSongs from './services/get-songs.js';
 import YoutubeAPI from './services/youtube-api.js';
 import SpotifyAPI from './services/spotify-api.js';
 import SpotifyTrackMappingStore from './services/spotify-track-mapping-store.js';
+import SpotifyQueueResolver from './services/spotify-queue-resolver.js';
 import SpotifyTrackResolver from './services/spotify-track-resolver.js';
 
 // Commands
@@ -69,6 +70,10 @@ container.bind(TYPES.Config).toConstantValue(new ConfigProvider());
 container.bind<GetSongs>(TYPES.Services.GetSongs).to(GetSongs).inSingletonScope();
 container.bind<AddQueryToQueue>(TYPES.Services.AddQueryToQueue).to(AddQueryToQueue).inSingletonScope();
 container.bind<ButtonChoicePrompt>(TYPES.Services.ButtonChoicePrompt).to(ButtonChoicePrompt).inSingletonScope();
+container.bind<SpotifyQueueResolver>(TYPES.Services.SpotifyQueueResolver).toDynamicValue(context => new SpotifyQueueResolver(
+  context.container.get<GetSongs>(TYPES.Services.GetSongs),
+  context.container.get<SpotifyTrackResolver>(TYPES.Services.SpotifyTrackResolver),
+)).inSingletonScope();
 container.bind<SpotifyTrackMappingStore>(TYPES.Services.SpotifyTrackMappingStore).to(SpotifyTrackMappingStore).inSingletonScope();
 container.bind<SpotifyTrackResolver>(TYPES.Services.SpotifyTrackResolver).to(SpotifyTrackResolver).inSingletonScope();
 container.bind<YoutubeAPI>(TYPES.Services.YoutubeAPI).to(YoutubeAPI).inSingletonScope();
