@@ -72,6 +72,18 @@ assert.equal(
 );
 
 assert.equal(
+  isSpotifyVideoCandidateAllowed(video('『 愛♡スクリ～ム！ / AiScReam 』covered by くらのん', 'くらのん'), track('愛♡スクリ～ム！', 'AiScReam')),
+  false,
+  'rejects covered-by uploads',
+);
+
+assert.equal(
+  isSpotifyVideoCandidateAllowed(video('AiScReam - 愛♡スクリ～ム！ (Official Audio)', 'Love Live! series'), track('愛♡スクリ～ム！', 'AiScReam')),
+  true,
+  'allows the official AiScReam artist-title upload',
+);
+
+assert.equal(
   isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole Remix', 'Random Channel'), track('Supermassive Black Hole')),
   false,
   'rejects unofficial remix uploads',
@@ -123,6 +135,18 @@ assert.equal(
   isSpotifyVideoCandidateAllowed(video('【ガイドなし】愛♡スクリ～ム！/AiScReam【カラオケ】', 'Random Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
   false,
   'rejects Japanese karaoke uploads',
+);
+
+assert.equal(
+  isSpotifyVideoCandidateAllowed(video('【創作譜面】愛♡スクリ～ム (フルver.) / AiScReam （OpenTaiko・太鼓さん次郎）', 'Random Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
+  false,
+  'rejects rhythm-game chart uploads',
+);
+
+assert.equal(
+  isSpotifyVideoCandidateAllowed(video('AiScReam - 愛♡スクリ～ム！(Türkçe Çeviri)', 'Random Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
+  false,
+  'rejects translated uploads',
 );
 
 assert.equal(

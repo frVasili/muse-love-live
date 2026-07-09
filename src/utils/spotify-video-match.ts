@@ -11,11 +11,11 @@ export type TrackSearchContext = {
   durationMs?: number;
 };
 
-const UNOFFICIAL_REJECT_SIGNALS = /\b(cover|karaoke|instrumental|remix|nightcore|reaction|clip|clips|short|shorts|comparison|compared|vs|lyric|lyrics|translation|translated|subbed|subtitle|subtitles|mirror|mirrored|mmd|beatsaber|beat saber|amv|mad|piano|orchestra)\b/;
+const UNOFFICIAL_REJECT_SIGNALS = /\b(cover|covered|karaoke|instrumental|remix|nightcore|reaction|clip|clips|short|shorts|comparison|compared|vs|lyric|lyrics|translation|translated|subbed|subtitle|subtitles|mirror|mirrored|mmd|beatsaber|beat saber|taiko|opentaiko|amv|mad|piano|orchestra|çeviri)\b/;
 const UNOFFICIAL_REUPLOAD_PHRASES = /\b(color coded|sped up|slowed down|slowed reverb|one hour|1 hour|extended loop)\b/;
-const UNOFFICIAL_PENALTY_SIGNALS = /\b(cover|karaoke|instrumental|remix|nightcore|reaction|live|mirror|mirrored)\b/;
+const UNOFFICIAL_PENALTY_SIGNALS = /\b(cover|covered|karaoke|instrumental|remix|nightcore|reaction|live|mirror|mirrored)\b/;
 const LIVE_UPLOAD_REJECT_SIGNALS = /\b(live at|live from|live version|live performance|live concert|final live|unit live|live action|live day)\b/;
-const UNOFFICIAL_NON_ASCII_SIGNALS = /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d|\u30ab\u30e9\u30aa\u30b1|\u30ac\u30a4\u30c9\u306a\u3057|\u6b4c\u8a5e|\u8010\u4e45|\u30aa\u30eb\u30b4\u30fc\u30eb|\u30d4\u30a2\u30ce|\u30e9\u30a4\u30d6\u6620\u50cf|\u6f14\u594f\u3057\u3066\u307f\u305f/;
+const UNOFFICIAL_NON_ASCII_SIGNALS = /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d|\u30ab\u30e9\u30aa\u30b1|\u30ac\u30a4\u30c9\u306a\u3057|\u6b4c\u8a5e|\u8010\u4e45|\u30aa\u30eb\u30b4\u30fc\u30eb|\u30d4\u30a2\u30ce|\u30e9\u30a4\u30d6\u6620\u50cf|\u6f14\u594f\u3057\u3066\u307f\u305f|\u5275\u4f5c\u8b5c\u9762|\u592a\u9f13\u3055\u3093\u6b21\u90ce/;
 const NON_AUDIO_VERSION_SIGNALS = /\b(off vocal|off-vocal|tv size|tv-size|game size|game-size|full combo)\b/;
 const OFFICIAL_TITLE_TEXT = /\b(official|audio|video|music|mv|lyric|lyrics|visualizer|topic|provided to youtube by)\b/g;
 
