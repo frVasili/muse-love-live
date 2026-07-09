@@ -4,7 +4,8 @@ import shuffle from 'array-shuffle';
 import {SponsorBlock} from 'sponsorblock-api';
 import {TYPES} from '../types.js';
 import GetSongs from '../services/get-songs.js';
-import {MediaSource, SongMetadata, STATUS} from './player.js';
+import Player, {MediaSource, SongMetadata, STATUS} from './player.js';
+import type {QueuedSong, SpotifyOrigin} from './player.js';
 import PlayerManager from '../managers/player.js';
 import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
 import {getMemberVoiceChannel, getMostPopularVoiceChannel} from '../utils/channels.js';
@@ -21,6 +22,7 @@ import {prettyTime} from '../utils/time.js';
 type QueueResolution = {
   extraMsg: string;
   songs: SongMetadata[];
+  uncertainSpotifyTracks: SpotifyTrack[];
 };
 
 @injectable()
@@ -70,11 +72,10 @@ export default class AddQueryToQueue {
 
     await interaction.deferReply({ephemeral: queueAddResponseEphemeral});
 
-    let {songs: newSongs, extraMsg} = await this.resolveSongs({
+    let {songs: newSongs, extraMsg, uncertainSpotifyTracks} = await this.resolveSongs({
       interaction,
       playlistLimit,
       query,
-      replyEphemeral: queueAddResponseEphemeral,
       shouldSplitChapters,
     });
 
@@ -134,12 +135,14 @@ export default class AddQueryToQueue {
       }
     }
 
+    const spotifyWarning = this.buildSpotifyWarning(player, uncertainSpotifyTracks);
+
     if (statusMsg !== '') {
-      if (extraMsg === '') {
-        extraMsg = statusMsg;
-      } else {
-        extraMsg = `${statusMsg}, ${extraMsg}`;
-      }
+      extraMsg = extraMsg === '' ? statusMsg : `${statusMsg}, ${extraMsg}`;
+    }
+
+    if (spotifyWarning !== '') {
+      extraMsg = extraMsg === '' ? spotifyWarning : `${extraMsg}, ${spotifyWarning}`;
     }
 
     if (extraMsg !== '') {
@@ -165,13 +168,11 @@ export default class AddQueryToQueue {
     interaction,
     playlistLimit,
     query,
-    replyEphemeral,
     shouldSplitChapters,
   }: {
     interaction: ChatInputCommandInteraction;
     playlistLimit: number;
     query: string;
-    replyEphemeral: boolean;
     shouldSplitChapters: boolean;
   }): Promise<QueueResolution> {
     if (!this.getSongs.isUrl(query)) {
@@ -179,12 +180,13 @@ export default class AddQueryToQueue {
     }
 
     if (this.getSongs.isSpotifyQuery(query)) {
-      return this.resolveSpotifyQuery(interaction, query, playlistLimit, shouldSplitChapters, replyEphemeral);
+      return this.resolveSpotifyQuery(query, playlistLimit, shouldSplitChapters);
     }
 
     return {
       songs: await this.getSongs.getDirectUrlSongs(query, shouldSplitChapters),
       extraMsg: '',
+      uncertainSpotifyTracks: [],
     };
   }
 
@@ -220,25 +222,25 @@ export default class AddQueryToQueue {
       return {
         songs: [],
         extraMsg: 'search cancelled',
+        uncertainSpotifyTracks: [],
       };
     }
 
     return {
       songs: candidates[selection.selectedIndex ?? 0].songs,
       extraMsg: selection.timedOut ? 'selected result #1 after timeout' : '',
+      uncertainSpotifyTracks: [],
     };
   }
 
-  private async resolveSpotifyQuery(interaction: ChatInputCommandInteraction, query: string, playlistLimit: number, shouldSplitChapters: boolean, replyEphemeral: boolean): Promise<QueueResolution> {
+  private async resolveSpotifyQuery(query: string, playlistLimit: number, shouldSplitChapters: boolean): Promise<QueueResolution> {
     const [tracks, playlist] = await this.getSongs.getSpotifyTracks(query, playlistLimit);
     const resolutions = await Promise.all(tracks.map(async track => this.spotifyTrackResolver.resolve(track, shouldSplitChapters, playlist)));
 
     const songsByTrack: SongMetadata[][] = tracks.map(() => []);
     const songsNotFound: string[] = [];
-    const uncertainTracks: Array<{candidateSet: SongSelectionCandidate[]; index: number; track: SpotifyTrack}> = [];
+    const uncertainSpotifyTracks: SpotifyTrack[] = [];
     let autoMatchedCount = 0;
-    let confirmedCount = 0;
-    let timedOutCount = 0;
 
     for (const [index, resolution] of resolutions.entries()) {
       if (resolution.status === 'saved' || resolution.status === 'high-confidence') {
@@ -248,81 +250,24 @@ export default class AddQueryToQueue {
       }
 
       if (resolution.status === 'uncertain' && resolution.candidates.length > 0) {
-        uncertainTracks.push({
-          candidateSet: resolution.candidates.slice(0, 5),
-          index,
-          track: tracks[index],
-        });
+        const topCandidate = resolution.candidates[0];
+        songsByTrack[index] = this.spotifyTrackResolver.attachSpotifyOrigin(
+          tracks[index],
+          topCandidate.songs,
+          'timeout-top',
+          playlist,
+        );
+        uncertainSpotifyTracks.push(tracks[index]);
         continue;
       }
 
       songsNotFound.push(this.formatSpotifyTrack(tracks[index]));
     }
 
-    if (uncertainTracks.length > 0) {
-      await interaction.editReply(`**${uncertainTracks.length.toString()}** song${uncertainTracks.length === 1 ? '' : 's'} have uncertain results, please confirm them one by one. If you do nothing for ${TWENTY_SECONDS_IN_SECONDS.toString()} seconds, I'll use result #1.`);
-    }
-
-    // These prompts must run in sequence so the requester only sees one unresolved Spotify choice at a time.
-    for (const {candidateSet, index, track} of uncertainTracks) {
-      const promptConfig: ButtonPromptConfig = {
-        prefix: 'play-confirm',
-        requesterId: interaction.user.id,
-        buttonLabels: candidateSet.map((_, candidateIndex) => String(candidateIndex + 1)),
-        timeoutSeconds: TWENTY_SECONDS_IN_SECONDS,
-        includeCancel: true,
-        fallbackIndex: 0,
-      };
-      // eslint-disable-next-line no-await-in-loop
-      const {requestId, components} = await this.buttonChoicePrompt.createPrompt(promptConfig);
-      // eslint-disable-next-line no-await-in-loop
-      const promptMessage = await interaction.followUp({
-        content: this.buildSpotifyPrompt(track, candidateSet),
-        components: this.buttonChoicePrompt.toMessageComponents(components),
-        ephemeral: replyEphemeral,
-      });
-      // eslint-disable-next-line no-await-in-loop
-      const selection = await this.buttonChoicePrompt.waitForChoice(requestId);
-      const disabledComponents = this.buttonChoicePrompt.buildComponents(promptConfig, requestId, true);
-
-      if (selection.cancelled) {
-        songsNotFound.push(this.formatSpotifyTrack(track));
-        // eslint-disable-next-line no-await-in-loop
-        await promptMessage.edit({
-          content: `skipped **${this.formatSpotifyTrack(track)}**`,
-          components: this.buttonChoicePrompt.toMessageComponents(disabledComponents),
-        });
-        continue;
-      }
-
-      const selectedCandidate = candidateSet[selection.selectedIndex ?? 0];
-      songsByTrack[index] = this.spotifyTrackResolver.attachSpotifyOrigin(
-        track,
-        selectedCandidate.songs,
-        selection.timedOut ? 'timeout-top' : 'confirmed',
-        playlist,
-      );
-
-      if (selection.timedOut) {
-        timedOutCount++;
-      } else {
-        confirmedCount++;
-        // eslint-disable-next-line no-await-in-loop
-        await this.spotifyTrackResolver.saveConfirmedMapping(track, selectedCandidate, interaction.user.id);
-      }
-
-      // eslint-disable-next-line no-await-in-loop
-      await promptMessage.edit({
-        content: `selected **${selectedCandidate.title}** for **${this.formatSpotifyTrack(track)}**${selection.timedOut ? ' after timeout' : ''}`,
-        components: this.buttonChoicePrompt.toMessageComponents(disabledComponents),
-      });
-    }
-
-    const songs = songsByTrack.flat();
-
     return {
-      songs,
-      extraMsg: this.buildSpotifySummary({autoMatchedCount, confirmedCount, timedOutCount, songsNotFound}),
+      songs: songsByTrack.flat(),
+      extraMsg: this.buildSpotifySummary({autoMatchedCount, songsNotFound}),
+      uncertainSpotifyTracks,
     };
   }
 
@@ -336,34 +281,17 @@ export default class AddQueryToQueue {
     return `picked **${selectedCandidate.title}** for **${query}**${timedOut ? ' after timing out to result #1' : ''}`;
   }
 
-  private buildSpotifyPrompt(track: SpotifyTrack, candidates: SongSelectionCandidate[]): string {
-    const lines = candidates.map((candidate, index) => `\`${index + 1}.\` **${candidate.title}** - ${candidate.artist} \`[${candidate.isLive ? 'live' : prettyTime(candidate.length)}]\``);
-    return `please confirm **${this.formatSpotifyTrack(track)}**:\n${lines.join('\n')}\n\nif you don't pick one within ${TWENTY_SECONDS_IN_SECONDS.toString()} seconds, i'll use **#1**.`;
-  }
-
   private buildSpotifySummary({
     autoMatchedCount,
-    confirmedCount,
-    timedOutCount,
     songsNotFound,
   }: {
     autoMatchedCount: number;
-    confirmedCount: number;
-    timedOutCount: number;
     songsNotFound: string[];
   }): string {
     const parts: string[] = [];
 
     if (autoMatchedCount > 0) {
       parts.push(`${autoMatchedCount.toString()} matched automatically`);
-    }
-
-    if (confirmedCount > 0) {
-      parts.push(`${confirmedCount.toString()} manually confirmed`);
-    }
-
-    if (timedOutCount > 0) {
-      parts.push(`${timedOutCount.toString()} used result #1 after timeout`);
     }
 
     if (songsNotFound.length === 1) {
@@ -375,7 +303,59 @@ export default class AddQueryToQueue {
     return parts.join(', ');
   }
 
-  private formatSpotifyTrack(track: SpotifyTrack): string {
+  private buildSpotifyWarning(player: Player, uncertainSpotifyTracks: SpotifyTrack[]): string {
+    if (uncertainSpotifyTracks.length === 0) {
+      return '';
+    }
+
+    const queue = player.getQueue();
+    const current = player.getCurrent();
+    const warnedTracks = uncertainSpotifyTracks.filter(track => this.hasQueuedSpotifyWarning(track, queue, current));
+
+    if (warnedTracks.length === 0) {
+      return '';
+    }
+
+    return `hey ${this.formatSongList(warnedTracks.map(track => this.formatSpotifyTrack(track)))} might not be correct, please check ${this.describeQueuePositions(warnedTracks, queue, current)}`;
+  }
+
+  private hasQueuedSpotifyWarning(track: SpotifyTrack, queue: QueuedSong[], current: QueuedSong | null): boolean {
+    if (current?.spotifyOrigin?.spotifyTrackId === track.id) {
+      return true;
+    }
+
+    return queue.some(song => song.spotifyOrigin?.spotifyTrackId === track.id);
+  }
+
+  private describeQueuePositions(uncertainSpotifyTracks: SpotifyTrack[], queue: QueuedSong[], current: QueuedSong | null): string {
+    const positions = uncertainSpotifyTracks
+      .map(track => {
+        if (current?.spotifyOrigin?.spotifyTrackId === track.id) {
+          return 'the current song';
+        }
+
+        const queuePosition = queue.findIndex(song => song.spotifyOrigin?.spotifyTrackId === track.id);
+        return queuePosition === -1 ? null : `position ${queuePosition + 1}`;
+      })
+      .filter((position): position is string => position !== null);
+
+    if (positions.length === 0) {
+      return 'the queue';
+    }
+
+    if (positions.length === 1) {
+      return `${positions[0]} in queue`;
+    }
+
+    const allButLast = positions.slice(0, -1).join(', ');
+    return `${allButLast} and ${positions.at(-1)!} in queue`;
+  }
+
+  private formatSpotifyTrack(track: SpotifyTrack | SpotifyOrigin): string {
+    if ('spotifyName' in track) {
+      return `${track.spotifyName} - ${track.spotifyArtist}`;
+    }
+
     return `${track.name} - ${track.artist}`;
   }
 
@@ -448,3 +428,4 @@ export default class AddQueryToQueue {
     }
   }
 }
+

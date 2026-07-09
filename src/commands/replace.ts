@@ -10,8 +10,6 @@ import type {SongSelectionCandidate} from '../services/youtube-api.js';
 import {prettyTime} from '../utils/time.js';
 import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
-import SpotifyTrackResolver from '../services/spotify-track-resolver.js';
-import {MediaSource} from '../services/player.js';
 import type {QueuedSong, SongMetadata} from '../services/player.js';
 
 @injectable()
@@ -33,11 +31,10 @@ export default class implements Command {
     @inject(TYPES.Managers.Player) private readonly playerManager: PlayerManager,
     @inject(TYPES.Services.GetSongs) private readonly getSongs: GetSongs,
     @inject(TYPES.Services.ButtonChoicePrompt) private readonly buttonChoicePrompt: ButtonChoicePrompt,
-    @inject(TYPES.Services.SpotifyTrackResolver) private readonly spotifyTrackResolver: SpotifyTrackResolver,
   ) {}
 
   public get handledButtonIdPrefixes() {
-    return ['replace-confirm', 'replace-save'];
+    return ['replace-confirm'];
   }
 
   public get requiresVC() {
@@ -86,10 +83,6 @@ export default class implements Command {
         content: `replaced queue position **${position.toString()}** with **${replacementSong.title}**${extraMsg}`,
         components: [],
       });
-    }
-
-    if (oldSong.spotifyOrigin && replacementSong.source === MediaSource.Youtube) {
-      await this.promptToSaveSpotifyMapping(interaction, oldSong, candidate, settings.queueAddResponseEphemeral);
     }
   }
 
@@ -160,52 +153,6 @@ export default class implements Command {
       songs: candidate.songs,
       extraMsg: selection.timedOut ? ' (selected result #1 after timeout)' : '',
     };
-  }
-
-  private async promptToSaveSpotifyMapping(interaction: ChatInputCommandInteraction, oldSong: QueuedSong, candidate: SongSelectionCandidate, ephemeral: boolean): Promise<void> {
-    const {spotifyOrigin} = oldSong;
-
-    if (!spotifyOrigin) {
-      return;
-    }
-
-    const promptConfig: ButtonPromptConfig = {
-      prefix: 'replace-save',
-      requesterId: interaction.user.id,
-      buttonLabels: ['Save mapping', 'Skip'],
-      timeoutSeconds: 20,
-      includeCancel: false,
-      fallbackIndex: 1,
-    };
-    const {requestId, components} = await this.buttonChoicePrompt.createPrompt(promptConfig);
-    const promptMessage = await interaction.followUp({
-      content: `would you like **${spotifyOrigin.spotifyName} - ${spotifyOrigin.spotifyArtist}** linked to **${candidate.title}** for future spotify imports?`,
-      components: this.buttonChoicePrompt.toMessageComponents(components),
-      ephemeral,
-    });
-    const selection = await this.buttonChoicePrompt.waitForChoice(requestId);
-    const disabledComponents = this.buttonChoicePrompt.buildComponents(promptConfig, requestId, true);
-
-    if ((selection.selectedIndex ?? 1) === 0 && !selection.timedOut) {
-      await this.spotifyTrackResolver.saveConfirmedMapping({
-        id: spotifyOrigin.spotifyTrackId,
-        url: spotifyOrigin.spotifyUrl,
-        name: spotifyOrigin.spotifyName,
-        artist: spotifyOrigin.spotifyArtist,
-        durationMs: spotifyOrigin.spotifyDurationMs,
-      }, candidate, interaction.user.id);
-
-      await promptMessage.edit({
-        content: `saved the spotify mapping for **${spotifyOrigin.spotifyName} - ${spotifyOrigin.spotifyArtist}**`,
-        components: this.buttonChoicePrompt.toMessageComponents(disabledComponents),
-      });
-      return;
-    }
-
-    await promptMessage.edit({
-      content: `left the spotify mapping unchanged for **${spotifyOrigin.spotifyName} - ${spotifyOrigin.spotifyArtist}**`,
-      components: this.buttonChoicePrompt.toMessageComponents(disabledComponents),
-    });
   }
 
   private buildPrompt(query: string, candidates: SongSelectionCandidate[]): string {
