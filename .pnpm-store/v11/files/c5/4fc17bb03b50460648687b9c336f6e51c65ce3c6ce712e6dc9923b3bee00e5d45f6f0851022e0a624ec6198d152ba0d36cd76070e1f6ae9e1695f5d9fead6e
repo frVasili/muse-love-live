@@ -1,3 +1,0 @@
-import { Settings } from '../types.js';
-declare const makeLinksLines: ({ rootURL, user, repository, emails, paypalUser, githubSponsor }: Partial<Settings>) => string[];
-export default makeLinksLines;

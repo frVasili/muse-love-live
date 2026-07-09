@@ -4,3 +4,13 @@ dist
 dts
 .env
 Dockerfile
+
+.git
+.github
+.pnpm-store
+.pnpm-store/
+.env.*
+!.env.example
+*.log
+coverage
+.nyc_output

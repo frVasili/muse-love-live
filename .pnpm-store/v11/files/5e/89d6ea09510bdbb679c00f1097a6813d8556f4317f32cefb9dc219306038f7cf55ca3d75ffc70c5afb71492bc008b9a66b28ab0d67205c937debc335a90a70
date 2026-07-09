@@ -1,5 +1,0 @@
-export var Format;
-(function (Format) {
-    Format[Format["Default"] = 0] = "Default";
-})(Format || (Format = {}));
-//# sourceMappingURL=types.js.map

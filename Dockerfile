@@ -64,7 +64,8 @@ COPY --from=builder /usr/app/dist ./dist
 COPY --from=dependencies /usr/app/prod_node_modules node_modules
 COPY --from=builder /usr/app/node_modules/.prisma/client ./node_modules/.prisma/client
 
-COPY . .
+COPY package.json yarn.lock schema.prisma ./
+COPY migrations ./migrations
 
 ARG COMMIT_HASH=unknown
 ARG BUILD_DATE=unknown

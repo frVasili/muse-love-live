@@ -1,5 +1,0 @@
-import { Settings, SettingsWithPopulatedDefaults } from './types.js';
-export declare const getVisualLength: (str: string) => number;
-export declare const splitStringVertically: (str: string, maxLength: number) => string[];
-export declare const getLeftRightCounts: (len: number, str: string) => number[];
-export declare const getDefaultsFor: (settings: Settings) => SettingsWithPopulatedDefaults;
