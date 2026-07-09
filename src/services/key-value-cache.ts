@@ -13,6 +13,55 @@ const futureTimeToDate = (time: Seconds) => new Date(new Date().getTime() + (tim
 
 @injectable()
 export default class KeyValueCacheProvider {
+  async get<T>(key: string): Promise<T | null> {
+    const cachedResult = await prisma.keyValueCache.findUnique({
+      where: {
+        key,
+      },
+    });
+
+    if (!cachedResult) {
+      return null;
+    }
+
+    if (new Date() >= cachedResult.expiresAt) {
+      await prisma.keyValueCache.delete({
+        where: {
+          key,
+        },
+      });
+      return null;
+    }
+
+    return JSON.parse(cachedResult.value) as T;
+  }
+
+  async set<T>(key: string, value: T, expiresIn: Seconds): Promise<void> {
+    const expiresAt = futureTimeToDate(expiresIn);
+    await prisma.keyValueCache.upsert({
+      where: {
+        key,
+      },
+      update: {
+        value: JSON.stringify(value),
+        expiresAt,
+      },
+      create: {
+        key,
+        value: JSON.stringify(value),
+        expiresAt,
+      },
+    });
+  }
+
+  async delete(key: string): Promise<void> {
+    await prisma.keyValueCache.deleteMany({
+      where: {
+        key,
+      },
+    });
+  }
+
   async wrap<T extends [...any[], Options], F>(func: (...options: any) => Promise<F>, ...options: T): Promise<F> {
     if (options.length === 0) {
       throw new Error('Missing cache options');

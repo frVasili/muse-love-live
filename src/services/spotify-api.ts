@@ -126,6 +126,8 @@ export default class {
 
   private toSpotifyTrack(track: SpotifyApi.TrackObjectSimplified): SpotifyTrack {
     return {
+      id: track.id,
+      url: `https://open.spotify.com/track/${track.id}`,
       name: track.name,
       artist: track.artists[0].name,
       durationMs: track.duration_ms,

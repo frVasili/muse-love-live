@@ -10,9 +10,12 @@ import PlayerManager from './managers/player.js';
 
 // Services
 import AddQueryToQueue from './services/add-query-to-queue.js';
+import ButtonChoicePrompt from './services/button-choice-prompt.js';
 import GetSongs from './services/get-songs.js';
 import YoutubeAPI from './services/youtube-api.js';
 import SpotifyAPI from './services/spotify-api.js';
+import SpotifyTrackMappingStore from './services/spotify-track-mapping-store.js';
+import SpotifyTrackResolver from './services/spotify-track-resolver.js';
 
 // Commands
 import Command from './commands/index.js';
@@ -29,6 +32,7 @@ import NowPlaying from './commands/now-playing.js';
 import Pause from './commands/pause.js';
 import Play from './commands/play.js';
 import QueueCommand from './commands/queue.js';
+import Replace from './commands/replace.js';
 import Remove from './commands/remove.js';
 import Replay from './commands/replay.js';
 import Resume from './commands/resume.js';
@@ -36,6 +40,7 @@ import Seek from './commands/seek.js';
 import Shuffle from './commands/shuffle.js';
 import Skip from './commands/skip.js';
 import Stop from './commands/stop.js';
+import SpotifyCommand from './commands/spotify.js';
 import Unskip from './commands/unskip.js';
 import Volume from './commands/volume.js';
 import ThirdParty from './services/third-party.js';
@@ -63,6 +68,9 @@ container.bind(TYPES.Config).toConstantValue(new ConfigProvider());
 // Services
 container.bind<GetSongs>(TYPES.Services.GetSongs).to(GetSongs).inSingletonScope();
 container.bind<AddQueryToQueue>(TYPES.Services.AddQueryToQueue).to(AddQueryToQueue).inSingletonScope();
+container.bind<ButtonChoicePrompt>(TYPES.Services.ButtonChoicePrompt).to(ButtonChoicePrompt).inSingletonScope();
+container.bind<SpotifyTrackMappingStore>(TYPES.Services.SpotifyTrackMappingStore).to(SpotifyTrackMappingStore).inSingletonScope();
+container.bind<SpotifyTrackResolver>(TYPES.Services.SpotifyTrackResolver).to(SpotifyTrackResolver).inSingletonScope();
 container.bind<YoutubeAPI>(TYPES.Services.YoutubeAPI).to(YoutubeAPI).inSingletonScope();
 container.bind<SpotifyAPI>(TYPES.Services.SpotifyAPI).to(SpotifyAPI).inSingletonScope();
 
@@ -87,12 +95,14 @@ if (config.SPOTIFY_CLIENT_ID !== '' && config.SPOTIFY_CLIENT_SECRET !== '') {
   Pause,
   Play,
   QueueCommand,
+  Replace,
   Remove,
   Replay,
   Resume,
   Seek,
   Shuffle,
   Skip,
+  SpotifyCommand,
   Stop,
   Unskip,
   Volume,

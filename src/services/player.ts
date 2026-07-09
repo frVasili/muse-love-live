@@ -25,6 +25,7 @@ import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
 import {getYouTubeMediaSource} from '../utils/yt-dlp.js';
 import {Setting} from '@prisma/client';
 import {prisma} from '../utils/db.js';
+import {replaceCurrentQueueEntry, replaceUpcomingQueueEntry} from '../utils/queue-replacement.js';
 
 export enum MediaSource {
   Youtube,
@@ -34,6 +35,15 @@ export enum MediaSource {
 export interface QueuedPlaylist {
   title: string;
   source: string;
+}
+
+export interface SpotifyOrigin {
+  spotifyTrackId: string;
+  spotifyUrl: string;
+  spotifyName: string;
+  spotifyArtist: string;
+  spotifyDurationMs?: number;
+  matchSource: 'saved' | 'high-confidence' | 'confirmed' | 'timeout-top';
 }
 
 export interface SongMetadata {
@@ -46,6 +56,7 @@ export interface SongMetadata {
   isLive: boolean;
   thumbnailUrl: string | null;
   source: MediaSource;
+  spotifyOrigin?: SpotifyOrigin | null;
 }
 
 export interface QueuedSong extends SongMetadata {
@@ -499,6 +510,30 @@ export default class {
     this.queue.splice(this.queuePosition + to, 0, this.queue.splice(this.queuePosition + from, 1)[0]);
     this.persistSession();
     return this.queue[this.queuePosition + to];
+  }
+
+  replaceCurrent(song: QueuedSong): void {
+    if (!this.getCurrent()) {
+      throw new Error('No song is currently playing.');
+    }
+
+    this.queue = replaceCurrentQueueEntry(this.queue, this.queuePosition, song);
+    this.nowPlaying = song;
+    this.positionInSeconds = 0;
+    this.lastPersistedPosition = 0;
+    this.lastSongURL = '';
+    this.stopTrackingPosition();
+    this.persistSession();
+  }
+
+  replaceInQueue(position: number, song: QueuedSong): QueuedSong {
+    if (position < 1 || position > this.queueSize()) {
+      throw new Error('Replace index is outside the range of the queue.');
+    }
+
+    this.queue = replaceUpcomingQueueEntry(this.queue, this.queuePosition, position, song);
+    this.persistSession();
+    return song;
   }
 
   setVolume(level: number): void {

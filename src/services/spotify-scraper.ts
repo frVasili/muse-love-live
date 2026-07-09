@@ -1,6 +1,8 @@
 import {QueuedPlaylist} from './player.js';
 
 export interface SpotifyTrack {
+  id: string;
+  url: string;
   name: string;
   artist: string;
   durationMs?: number;
@@ -258,8 +260,15 @@ export default class SpotifyScraper {
     }
 
     const durationMs = this.extractDurationMs(value);
+    const id = uri?.split(':').at(-1);
+
+    if (!id) {
+      return null;
+    }
 
     return {
+      id,
+      url: `https://open.spotify.com/track/${id}`,
       name: value.name,
       artist,
       ...(durationMs === undefined ? {} : {durationMs}),

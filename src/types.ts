@@ -11,7 +11,10 @@ export const TYPES = {
   },
   Services: {
     AddQueryToQueue: Symbol('AddQueryToQueue'),
+    ButtonChoicePrompt: Symbol('ButtonChoicePrompt'),
     GetSongs: Symbol('GetSongs'),
+    SpotifyTrackMappingStore: Symbol('SpotifyTrackMappingStore'),
+    SpotifyTrackResolver: Symbol('SpotifyTrackResolver'),
     YoutubeAPI: Symbol('YoutubeAPI'),
     SpotifyAPI: Symbol('SpotifyAPI'),
   },

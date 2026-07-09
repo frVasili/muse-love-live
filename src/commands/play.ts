@@ -1,4 +1,4 @@
-import {AutocompleteInteraction, ChatInputCommandInteraction} from 'discord.js';
+import {AutocompleteInteraction, ButtonInteraction, ChatInputCommandInteraction} from 'discord.js';
 import {URL} from 'url';
 import {SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder} from '@discordjs/builders';
 import {inject, injectable, optional} from 'inversify';
@@ -10,21 +10,25 @@ import getYouTubeAndSpotifySuggestionsFor, {SpotifySuggestionsUnavailableError} 
 import KeyValueCacheProvider from '../services/key-value-cache.js';
 import {ONE_HOUR_IN_SECONDS} from '../utils/constants.js';
 import AddQueryToQueue from '../services/add-query-to-queue.js';
+import ButtonChoicePrompt from '../services/button-choice-prompt.js';
 
 @injectable()
 export default class implements Command {
   public readonly slashCommand: Partial<SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder> & Pick<SlashCommandBuilder, 'toJSON'>;
+  public readonly handledButtonIdPrefixes = ['play-confirm'];
 
   public requiresVC = true;
 
   private readonly spotify?: Spotify;
   private readonly cache: KeyValueCacheProvider;
   private readonly addQueryToQueue: AddQueryToQueue;
+  private readonly buttonChoicePrompt: ButtonChoicePrompt;
 
-  constructor(@inject(TYPES.ThirdParty) @optional() thirdParty: ThirdParty, @inject(TYPES.KeyValueCache) cache: KeyValueCacheProvider, @inject(TYPES.Services.AddQueryToQueue) addQueryToQueue: AddQueryToQueue) {
+  constructor(@inject(TYPES.ThirdParty) @optional() thirdParty: ThirdParty, @inject(TYPES.KeyValueCache) cache: KeyValueCacheProvider, @inject(TYPES.Services.AddQueryToQueue) addQueryToQueue: AddQueryToQueue, @inject(TYPES.Services.ButtonChoicePrompt) buttonChoicePrompt: ButtonChoicePrompt) {
     this.spotify = thirdParty?.spotify;
     this.cache = cache;
     this.addQueryToQueue = addQueryToQueue;
+    this.buttonChoicePrompt = buttonChoicePrompt;
 
     const queryDescription = thirdParty === undefined
       ? 'YouTube URL or search query'
@@ -102,5 +106,9 @@ export default class implements Command {
     }
 
     await interaction.respond(suggestions);
+  }
+
+  public async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
+    await this.buttonChoicePrompt.handleButtonInteraction(interaction);
   }
 }

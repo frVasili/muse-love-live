@@ -4,6 +4,7 @@ import {AutocompleteInteraction, ButtonInteraction, ChatInputCommandInteraction}
 export default interface Command {
   readonly slashCommand: Partial<SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder> & Pick<SlashCommandBuilder, 'toJSON'>;
   readonly handledButtonIds?: readonly string[];
+  readonly handledButtonIdPrefixes?: readonly string[];
   readonly requiresVC?: boolean | ((interaction: ChatInputCommandInteraction) => boolean);
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
   handleButtonInteraction?: (interaction: ButtonInteraction) => Promise<void>;

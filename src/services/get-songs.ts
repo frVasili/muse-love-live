@@ -3,14 +3,21 @@ import * as spotifyURI from 'spotify-uri';
 import {SongMetadata, QueuedPlaylist, MediaSource} from './player.js';
 import {TYPES} from '../types.js';
 import ffmpeg from 'fluent-ffmpeg';
-import YoutubeAPI from './youtube-api.js';
+import YoutubeAPI, {SongSelectionCandidate} from './youtube-api.js';
 import SpotifyAPI, {SpotifyTrack} from './spotify-api.js';
 import {URL} from 'node:url';
 
 type SpotifyConversionResult = [SongMetadata[], string[], number];
+const YOUTUBE_HOSTS = [
+  'www.youtube.com',
+  'youtu.be',
+  'youtube.com',
+  'music.youtube.com',
+  'www.music.youtube.com',
+];
 
 @injectable()
-export default class {
+export default class GetSongs {
   private readonly youtubeAPI: YoutubeAPI;
   private readonly spotifyAPI?: SpotifyAPI;
 
@@ -26,14 +33,6 @@ export default class {
     // Test if it's a complete URL
     try {
       const url = new URL(query);
-
-      const YOUTUBE_HOSTS = [
-        'www.youtube.com',
-        'youtu.be',
-        'youtube.com',
-        'music.youtube.com',
-        'www.music.youtube.com',
-      ];
 
       if (YOUTUBE_HOSTS.includes(url.host)) {
         // YouTube source
@@ -99,6 +98,83 @@ export default class {
     }
 
     return [newSongs, extraMsg];
+  }
+
+  isUrl(query: string): boolean {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(query);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  isSpotifyQuery(query: string): boolean {
+    if (!this.isUrl(query)) {
+      return false;
+    }
+
+    const url = new URL(query);
+    return url.protocol === 'spotify:' || url.host === 'open.spotify.com';
+  }
+
+  isYouTubeQuery(query: string): boolean {
+    if (!this.isUrl(query)) {
+      return false;
+    }
+
+    const url = new URL(query);
+    return YOUTUBE_HOSTS.includes(url.host);
+  }
+
+  async getSearchCandidates(query: string, shouldSplitChapters: boolean, limit = 5): Promise<SongSelectionCandidate[]> {
+    return this.youtubeAPI.searchCandidates(query, shouldSplitChapters, limit);
+  }
+
+  async getDirectUrlSongs(query: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
+    const url = new URL(query);
+
+    if (YOUTUBE_HOSTS.includes(url.host)) {
+      if (url.searchParams.get('list')) {
+        return this.youtubePlaylist(url.searchParams.get('list')!, shouldSplitChapters);
+      }
+
+      return this.youtubeVideo(url.href, shouldSplitChapters);
+    }
+
+    const song = await this.httpLiveStream(query);
+    return [song];
+  }
+
+  async getSpotifyTracks(query: string, playlistLimit: number): Promise<[SpotifyTrack[], QueuedPlaylist | undefined]> {
+    if (this.spotifyAPI === undefined) {
+      throw new Error('Spotify support is unavailable!');
+    }
+
+    const parsed = spotifyURI.parse(query);
+
+    switch (parsed.type) {
+      case 'album': {
+        return this.spotifyAPI.getAlbum(query, playlistLimit);
+      }
+
+      case 'playlist': {
+        return this.spotifyAPI.getPlaylist(query, playlistLimit);
+      }
+
+      case 'track': {
+        return [[await this.spotifyAPI.getTrack(query)], undefined];
+      }
+
+      case 'artist': {
+        return [await this.spotifyAPI.getArtist(query, playlistLimit), undefined];
+      }
+
+      default: {
+        return [[], undefined];
+      }
+    }
   }
 
   private async youtubeVideoSearch(query: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {

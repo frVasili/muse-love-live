@@ -24,6 +24,7 @@ export default class {
   private readonly shouldRegisterCommandsOnBot: boolean;
   private readonly commandsByName!: Collection<string, Command>;
   private readonly commandsByButtonId!: Collection<string, Command>;
+  private readonly commandsByButtonPrefix!: Array<{prefix: string; command: Command}>;
 
   constructor(@inject(TYPES.Client) client: Client, @inject(TYPES.Config) config: Config) {
     this.client = client;
@@ -31,6 +32,7 @@ export default class {
     this.shouldRegisterCommandsOnBot = config.REGISTER_COMMANDS_ON_BOT;
     this.commandsByName = new Collection();
     this.commandsByButtonId = new Collection();
+    this.commandsByButtonPrefix = [];
   }
 
   public async register(): Promise<void> {
@@ -51,6 +53,12 @@ export default class {
       if (command.handledButtonIds) {
         for (const buttonId of command.handledButtonIds) {
           this.commandsByButtonId.set(buttonId, command);
+        }
+      }
+
+      if (command.handledButtonIdPrefixes) {
+        for (const prefix of command.handledButtonIdPrefixes) {
+          this.commandsByButtonPrefix.push({prefix: `${prefix}:`, command});
         }
       }
     }
@@ -80,7 +88,8 @@ export default class {
             await command.execute(interaction);
           }
         } else if (interaction.isButton()) {
-          const command = this.commandsByButtonId.get(interaction.customId);
+          const command = this.commandsByButtonId.get(interaction.customId)
+            ?? this.commandsByButtonPrefix.find(({prefix}) => interaction.customId.startsWith(prefix))?.command;
           if (!command) {
             return;
           }

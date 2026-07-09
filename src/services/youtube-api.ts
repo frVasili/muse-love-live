@@ -63,6 +63,20 @@ interface SearchItem {
   };
 }
 
+export interface SongSelectionCandidate {
+  videoId: string;
+  title: string;
+  artist: string;
+  length: number;
+  thumbnailUrl: string | null;
+  isLive: boolean;
+  score: number;
+  songs: SongMetadata[];
+  titleMatch: boolean;
+  exactTitleMatch: boolean;
+  durationDeltaSeconds?: number;
+}
+
 @injectable()
 export default class {
   private readonly youtubeKey: string;
@@ -83,9 +97,16 @@ export default class {
   }
 
   async search(query: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
-    return this.searchBestVideo({
+    const [candidate] = await this.searchCandidates(query, shouldSplitChapters, 1);
+    return candidate?.songs ?? [];
+  }
+
+  async searchCandidates(query: string, shouldSplitChapters: boolean, limit = 5): Promise<SongSelectionCandidate[]> {
+    return this.searchRankedCandidates({
       queries: [query],
       shouldSplitChapters,
+      searchLimit: Math.max(limit, 10),
+      resultLimit: limit,
     });
   }
 
@@ -95,17 +116,37 @@ export default class {
     durationMs?: number;
     shouldSplitChapters: boolean;
   }): Promise<SongMetadata[]> {
+    const [candidate] = await this.searchSpotifyTrackCandidates({
+      name,
+      artist,
+      durationMs,
+      shouldSplitChapters,
+      limit: 1,
+    });
+
+    return candidate?.songs ?? [];
+  }
+
+  async searchSpotifyTrackCandidates({name, artist, durationMs, shouldSplitChapters, limit = 5}: {
+    name: string;
+    artist: string;
+    durationMs?: number;
+    shouldSplitChapters: boolean;
+    limit?: number;
+  }): Promise<SongSelectionCandidate[]> {
     const normalizedName = name.trim();
     const normalizedArtist = artist.trim();
 
-    return this.searchBestVideo({
+    return this.searchRankedCandidates({
       queries: [
         `"${normalizedName}" "${normalizedArtist}"`,
         `"${normalizedName}"`,
+        normalizedName,
       ],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
+      resultLimit: limit,
     });
   }
 
@@ -205,12 +246,13 @@ export default class {
     return songsToReturn;
   }
 
-  private async searchBestVideo({queries, shouldSplitChapters, track, searchLimit = 10}: {
+  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5}: {
     queries: string[];
     shouldSplitChapters: boolean;
     track?: TrackSearchContext;
     searchLimit?: number;
-  }): Promise<SongMetadata[]> {
+    resultLimit?: number;
+  }): Promise<SongSelectionCandidate[]> {
     const seenIds = new Set<string>();
     const ids: string[] = [];
     let apiSearchFailed = false;
@@ -260,11 +302,9 @@ export default class {
 
     candidates.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
 
-    const bestVideo = candidates.at(0);
-
-    return bestVideo
-      ? this.getMetadataFromVideo({video: bestVideo, shouldSplitChapters})
-      : [];
+    return candidates
+      .slice(0, resultLimit)
+      .map(video => this.createSongSelectionCandidate(video, shouldSplitChapters, track));
   }
 
   private async searchVideoIds(query: string, limit = 10): Promise<string[]> {
@@ -430,6 +470,15 @@ export default class {
     return isSpotifyDurationCandidateAllowed(toSeconds(parse(video.contentDetails.duration)), track);
   }
 
+  private getDurationDeltaSeconds(video: VideoDetailsResponse, track: TrackSearchContext): number | undefined {
+    if (!track.durationMs) {
+      return undefined;
+    }
+
+    const expectedSeconds = Math.round(track.durationMs / 1000);
+    return Math.abs(toSeconds(parse(video.contentDetails.duration)) - expectedSeconds);
+  }
+
   private scoreExtraTitleText(title: string, name: string): number {
     const extraTextLength = title.replace(name, '').trim().length;
 
@@ -533,6 +582,27 @@ export default class {
     }
 
     return map;
+  }
+
+  private createSongSelectionCandidate(video: VideoDetailsResponse, shouldSplitChapters: boolean, track?: TrackSearchContext): SongSelectionCandidate {
+    const songs = this.getMetadataFromVideo({video, shouldSplitChapters});
+    const {titleMatch = false, exactTitleMatch = false} = track
+      ? getSpotifyTitleMatch(video, track)
+      : {titleMatch: false, exactTitleMatch: false};
+
+    return {
+      videoId: video.id,
+      title: video.snippet.title,
+      artist: video.snippet.channelTitle,
+      length: toSeconds(parse(video.contentDetails.duration)),
+      thumbnailUrl: video.snippet.thumbnails.medium.url,
+      isLive: video.snippet.liveBroadcastContent === 'live',
+      score: this.scoreVideo(video, track),
+      songs,
+      titleMatch,
+      exactTitleMatch,
+      durationDeltaSeconds: track ? this.getDurationDeltaSeconds(video, track) : undefined,
+    };
   }
 
   private async getVideosByID(videoIDs: string[]): Promise<VideoDetailsResponse[]> {
