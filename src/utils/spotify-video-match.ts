@@ -33,6 +33,9 @@ const removeOfficialTitleText = (value: string): string => value
   .replace(/\s+/g, ' ')
   .trim();
 
+const hasWholePhrase = (text: string, phrase: string): boolean => phrase !== ''
+  && ` ${text} `.includes(` ${phrase} `);
+
 const removeArtistFromTitle = (title: string, artist: string): string => {
   if (!artist) {
     return title;
@@ -73,6 +76,7 @@ export const getSpotifyTitleMatch = (video: SpotifyVideoCandidate, track: TrackS
   artist: string;
   titleMatch: boolean;
   exactTitleMatch: boolean;
+  artistMatch: boolean;
 } => {
   const title = normalizeSearchText(video.snippet.title);
   const channel = normalizeSearchText(video.snippet.channelTitle);
@@ -80,6 +84,7 @@ export const getSpotifyTitleMatch = (video: SpotifyVideoCandidate, track: TrackS
   const artist = normalizeSearchText(track.artist);
   const titleWithoutOfficialText = removeOfficialTitleText(title);
   const titleWithoutArtist = removeArtistFromTitle(titleWithoutOfficialText, artist);
+  const artistMatch = hasWholePhrase(title, artist) || hasWholePhrase(channel, artist);
 
   const titleMatch = title === name
     || titleWithoutOfficialText === name
@@ -92,6 +97,7 @@ export const getSpotifyTitleMatch = (video: SpotifyVideoCandidate, track: TrackS
     artist,
     titleMatch,
     exactTitleMatch: titleMatch,
+    artistMatch,
   };
 };
 

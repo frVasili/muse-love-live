@@ -74,6 +74,7 @@ export interface SongSelectionCandidate {
   songs: SongMetadata[];
   titleMatch: boolean;
   exactTitleMatch: boolean;
+  artistMatch: boolean;
   durationDeltaSeconds?: number;
 }
 
@@ -138,11 +139,7 @@ export default class {
     const normalizedArtist = artist.trim();
 
     return this.searchRankedCandidates({
-      queries: [
-        `"${normalizedName}" "${normalizedArtist}"`,
-        `"${normalizedName}"`,
-        normalizedName,
-      ],
+      queries: this.getSpotifyTrackQueries(normalizedName, normalizedArtist),
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
@@ -161,11 +158,7 @@ export default class {
     const normalizedArtist = artist.trim();
 
     return this.searchRankedCandidates({
-      queries: [
-        `"${normalizedName}" "${normalizedArtist}"`,
-        `"${normalizedName}"`,
-        normalizedName,
-      ],
+      queries: this.getSpotifyTrackQueries(normalizedName, normalizedArtist),
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
@@ -311,15 +304,13 @@ export default class {
       }
     }
 
-    if (videos.length === 0 && (apiSearchFailed || track)) {
-      videos = await this.searchScrapedVideos(queries, searchLimit);
+    let scrapedVideos: VideoDetailsResponse[] = [];
+
+    if (track || (videos.length === 0 && apiSearchFailed)) {
+      scrapedVideos = await this.searchScrapedVideos(queries, searchLimit);
     }
 
-    const ranked = ids.length > 0
-      ? ids
-        .map(id => videos.find(video => video.id === id))
-        .filter((video): video is VideoDetailsResponse => Boolean(video))
-      : videos;
+    const ranked = this.mergeRankedVideos(ids, videos, scrapedVideos);
 
     const candidates = track
       ? ranked.filter(video => this.isSpotifyTrackCandidateAllowed(video, track, spotifyCandidateMode))
@@ -399,12 +390,53 @@ export default class {
     return videos;
   }
 
+  private getSpotifyTrackQueries(name: string, artist: string): string[] {
+    return Array.from(new Set([
+      `"${name}" "${artist}"`,
+      `${artist} ${name}`,
+      `${name} ${artist}`,
+      `"${name}"`,
+      name,
+    ]));
+  }
+
+  private mergeRankedVideos(ids: string[], apiVideos: VideoDetailsResponse[], scrapedVideos: VideoDetailsResponse[]): VideoDetailsResponse[] {
+    const ranked: VideoDetailsResponse[] = [];
+    const seenIds = new Set<string>();
+
+    for (const id of ids) {
+      const video = apiVideos.find(candidate => candidate.id === id);
+
+      if (!video || seenIds.has(video.id)) {
+        continue;
+      }
+
+      seenIds.add(video.id);
+      ranked.push(video);
+    }
+
+    for (const video of scrapedVideos) {
+      if (seenIds.has(video.id)) {
+        continue;
+      }
+
+      seenIds.add(video.id);
+      ranked.push(video);
+    }
+
+    if (ranked.length > 0) {
+      return ranked;
+    }
+
+    return apiVideos;
+  }
+
   private scoreVideo(video: VideoDetailsResponse, track?: TrackSearchContext): number {
     if (!track) {
       return 0;
     }
 
-    const {title, channel, name, artist, titleMatch, exactTitleMatch} = getSpotifyTitleMatch(video, track);
+    const {title, channel, name, artist, titleMatch, exactTitleMatch, artistMatch} = getSpotifyTitleMatch(video, track);
     let score = 0;
 
     if (titleMatch) {
@@ -429,8 +461,8 @@ export default class {
       score += 10;
     }
 
-    if (title.includes(artist) || channel.includes(artist)) {
-      score += 5;
+    if (artistMatch) {
+      score += 90;
     }
 
     if (hasSpotifyVideoPenaltySignals(title)) {
@@ -504,13 +536,13 @@ export default class {
       return isSpotifyVideoCandidateAllowed(video, track);
     }
 
-    const {title, channel, name, artist} = getSpotifyTitleMatch(video, track);
+    const {title, channel, name, artistMatch, titleMatch} = getSpotifyTitleMatch(video, track);
 
     if (hasNonSongSignals(title, channel)) {
       return false;
     }
 
-    return title.includes(name) || title.includes(artist) || channel.includes(artist);
+    return artistMatch && (title.includes(name) || titleMatch);
   }
 
   private getDurationDeltaSeconds(video: VideoDetailsResponse, track: TrackSearchContext): number | undefined {
@@ -629,9 +661,9 @@ export default class {
 
   private createSongSelectionCandidate(video: VideoDetailsResponse, shouldSplitChapters: boolean, track?: TrackSearchContext): SongSelectionCandidate {
     const songs = this.getMetadataFromVideo({video, shouldSplitChapters});
-    const {titleMatch = false, exactTitleMatch = false} = track
+    const {titleMatch = false, exactTitleMatch = false, artistMatch = false} = track
       ? getSpotifyTitleMatch(video, track)
-      : {titleMatch: false, exactTitleMatch: false};
+      : {titleMatch: false, exactTitleMatch: false, artistMatch: false};
 
     return {
       videoId: video.id,
@@ -644,6 +676,7 @@ export default class {
       songs,
       titleMatch,
       exactTitleMatch,
+      artistMatch,
       durationDeltaSeconds: track ? this.getDurationDeltaSeconds(video, track) : undefined,
     };
   }

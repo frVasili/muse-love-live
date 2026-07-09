@@ -142,7 +142,7 @@ export default class AddQueryToQueue {
     }
 
     if (spotifyWarning !== '') {
-      extraMsg = extraMsg === '' ? spotifyWarning : `${extraMsg}, ${spotifyWarning}`;
+      extraMsg = extraMsg === '' ? spotifyWarning : `${extraMsg}; ${spotifyWarning}`;
     }
 
     if (extraMsg !== '') {
@@ -316,7 +316,7 @@ export default class AddQueryToQueue {
       return '';
     }
 
-    return `hey ${this.formatSongList(warnedTracks.map(track => this.formatSpotifyTrack(track)))} might not be correct, please check ${this.describeQueuePositions(warnedTracks, queue, current)}`;
+    return `possible mismatch at ${this.describeQueuePositions(warnedTracks, queue, current)}: ${this.formatSongList(warnedTracks.map(track => this.formatSpotifyTrack(track)))}`;
   }
 
   private hasQueuedSpotifyWarning(track: SpotifyTrack, queue: QueuedSong[], current: QueuedSong | null): boolean {

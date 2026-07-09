@@ -20,7 +20,10 @@ export const classifySpotifyCandidates = (candidates: SongSelectionCandidate[]):
   const {durationDeltaSeconds} = topCandidate;
   const runnerUpScoreDelta = runnerUp === undefined ? Number.POSITIVE_INFINITY : topCandidate.score - runnerUp.score;
   const isExactDurationMatch = typeof durationDeltaSeconds === 'number' && durationDeltaSeconds <= 5;
-  const isStrongRunnerUpLead = typeof durationDeltaSeconds === 'number' && durationDeltaSeconds <= 10 && runnerUpScoreDelta >= 80;
+  const isStrongRunnerUpLead = topCandidate.artistMatch
+    && typeof durationDeltaSeconds === 'number'
+    && durationDeltaSeconds <= 10
+    && runnerUpScoreDelta >= 80;
 
   if ((topCandidate.exactTitleMatch && isExactDurationMatch) || isStrongRunnerUpLead) {
     return {
