@@ -132,12 +132,12 @@ export default class GetSongs {
     return this.youtubeAPI.searchCandidates(query, shouldSplitChapters, limit);
   }
 
-  async getDirectUrlSongs(query: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
+  async getDirectUrlSongs(query: string, shouldSplitChapters: boolean, playlistLimit?: number): Promise<SongMetadata[]> {
     const url = new URL(query);
 
     if (YOUTUBE_HOSTS.includes(url.host)) {
       if (url.searchParams.get('list')) {
-        return this.youtubePlaylist(url.searchParams.get('list')!, shouldSplitChapters);
+        return this.youtubePlaylist(url.searchParams.get('list')!, shouldSplitChapters, playlistLimit);
       }
 
       return this.youtubeVideo(url.href, shouldSplitChapters);
@@ -185,8 +185,8 @@ export default class GetSongs {
     return this.youtubeAPI.getVideo(url, shouldSplitChapters);
   }
 
-  private async youtubePlaylist(listId: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
-    return this.youtubeAPI.getPlaylist(listId, shouldSplitChapters);
+  private async youtubePlaylist(listId: string, shouldSplitChapters: boolean, playlistLimit?: number): Promise<SongMetadata[]> {
+    return this.youtubeAPI.getPlaylist(listId, shouldSplitChapters, playlistLimit);
   }
 
   private async spotifySource(url: string, playlistLimit: number, shouldSplitChapters: boolean): Promise<SpotifyConversionResult> {

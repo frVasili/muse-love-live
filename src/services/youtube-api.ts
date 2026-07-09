@@ -184,7 +184,7 @@ export default class {
     return this.getMetadataFromVideo({video, shouldSplitChapters});
   }
 
-  async getPlaylist(listId: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
+  async getPlaylist(listId: string, shouldSplitChapters: boolean, playlistLimit = Number.POSITIVE_INFINITY): Promise<SongMetadata[]> {
     const playlistParams = {
       searchParams: {
         part: 'id, snippet, contentDetails',
@@ -211,7 +211,9 @@ export default class {
 
     let nextToken: string | undefined;
 
-    while (playlistVideos.length < playlist.contentDetails.itemCount) {
+    const maxPlaylistVideos = Math.min(playlist.contentDetails.itemCount, playlistLimit);
+
+    while (playlistVideos.length < maxPlaylistVideos) {
       const playlistItemsParams = {
         searchParams: {
           part: 'id, contentDetails',
@@ -231,7 +233,7 @@ export default class {
       );
 
       nextToken = nextPageToken;
-      playlistVideos.push(...items);
+      playlistVideos.push(...items.slice(0, maxPlaylistVideos - playlistVideos.length));
 
       // Start fetching extra details about videos
       // PlaylistItem misses some details, eg. if the video is a livestream
@@ -239,6 +241,10 @@ export default class {
         const videoDetailItems = await this.getVideosByID(items.map(item => item.contentDetails.videoId));
         videoDetails.push(...videoDetailItems);
       })());
+
+      if (!nextToken) {
+        break;
+      }
     }
 
     await Promise.all(videoDetailsPromises);
@@ -312,9 +318,11 @@ export default class {
 
     const ranked = this.mergeRankedVideos(ids, videos, scrapedVideos);
 
+    const validRanked = ranked.filter(video => this.getVideoLengthSeconds(video) !== null);
+
     const candidates = track
-      ? ranked.filter(video => this.isSpotifyTrackCandidateAllowed(video, track, spotifyCandidateMode))
-      : ranked;
+      ? validRanked.filter(video => this.isSpotifyTrackCandidateAllowed(video, track, spotifyCandidateMode))
+      : validRanked;
 
     candidates.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
 
@@ -365,12 +373,18 @@ export default class {
           continue;
         }
 
+        const duration = parseTime(item.duration);
+
+        if (!Number.isFinite(duration) || duration <= 0) {
+          continue;
+        }
+
         seenIds.add(item.id);
         videos.push({
           id: item.id,
           contentDetails: {
             videoId: item.id,
-            duration: `PT${parseTime(item.duration)}S`,
+            duration: `PT${duration}S`,
           },
           snippet: {
             title: item.name,
@@ -475,7 +489,13 @@ export default class {
 
     if (track.durationMs) {
       const expectedSeconds = Math.round(track.durationMs / 1000);
-      const delta = Math.abs(toSeconds(parse(video.contentDetails.duration)) - expectedSeconds);
+      const videoLengthSeconds = this.getVideoLengthSeconds(video);
+
+      if (videoLengthSeconds === null) {
+        return score;
+      }
+
+      const delta = Math.abs(videoLengthSeconds - expectedSeconds);
 
       score += this.scoreDurationDelta(delta);
     }
@@ -524,7 +544,9 @@ export default class {
   }
 
   private isSpotifyDurationCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext): boolean {
-    return isSpotifyDurationCandidateAllowed(toSeconds(parse(video.contentDetails.duration)), track);
+    const videoLengthSeconds = this.getVideoLengthSeconds(video);
+
+    return videoLengthSeconds !== null && isSpotifyDurationCandidateAllowed(videoLengthSeconds, track);
   }
 
   private isSpotifyTrackCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext, mode: 'strict' | 'fallback'): boolean {
@@ -551,7 +573,9 @@ export default class {
     }
 
     const expectedSeconds = Math.round(track.durationMs / 1000);
-    return Math.abs(toSeconds(parse(video.contentDetails.duration)) - expectedSeconds);
+    const videoLengthSeconds = this.getVideoLengthSeconds(video);
+
+    return videoLengthSeconds === null ? undefined : Math.abs(videoLengthSeconds - expectedSeconds);
   }
 
   private scoreExtraTitleText(title: string, name: string): number {
@@ -581,11 +605,17 @@ export default class {
     queuedPlaylist?: QueuedPlaylist;
     shouldSplitChapters?: boolean;
   }): SongMetadata[] {
+    const length = this.getVideoLengthSeconds(video);
+
+    if (length === null) {
+      throw new Error('Video duration is invalid.');
+    }
+
     const base: SongMetadata = {
       source: MediaSource.Youtube,
       title: video.snippet.title,
       artist: video.snippet.channelTitle,
-      length: toSeconds(parse(video.contentDetails.duration)),
+      length,
       offset: 0,
       url: video.id,
       playlist: queuedPlaylist ?? null,
@@ -669,7 +699,7 @@ export default class {
       videoId: video.id,
       title: video.snippet.title,
       artist: video.snippet.channelTitle,
-      length: toSeconds(parse(video.contentDetails.duration)),
+      length: this.getVideoLengthSeconds(video)!,
       thumbnailUrl: video.snippet.thumbnails.medium.url,
       isLive: video.snippet.liveBroadcastContent === 'live',
       score: this.scoreVideo(video, track),
@@ -679,6 +709,15 @@ export default class {
       artistMatch,
       durationDeltaSeconds: track ? this.getDurationDeltaSeconds(video, track) : undefined,
     };
+  }
+
+  private getVideoLengthSeconds(video: VideoDetailsResponse): number | null {
+    try {
+      const length = toSeconds(parse(video.contentDetails.duration));
+      return Number.isFinite(length) && length > 0 ? length : null;
+    } catch {
+      return null;
+    }
   }
 
   private async getVideosByID(videoIDs: string[]): Promise<VideoDetailsResponse[]> {

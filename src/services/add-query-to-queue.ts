@@ -2,6 +2,7 @@ import {ChatInputCommandInteraction, GuildMember} from 'discord.js';
 import {inject, injectable} from 'inversify';
 import shuffle from 'array-shuffle';
 import {SponsorBlock} from 'sponsorblock-api';
+import pLimit from 'p-limit';
 import {TYPES} from '../types.js';
 import GetSongs from '../services/get-songs.js';
 import Player, {MediaSource, SongMetadata, STATUS} from './player.js';
@@ -24,6 +25,8 @@ type QueueResolution = {
   songs: SongMetadata[];
   uncertainSpotifyTracks: SpotifyTrack[];
 };
+
+const SPOTIFY_TRACK_RESOLVE_CONCURRENCY = 4;
 
 @injectable()
 export default class AddQueryToQueue {
@@ -184,7 +187,7 @@ export default class AddQueryToQueue {
     }
 
     return {
-      songs: await this.getSongs.getDirectUrlSongs(query, shouldSplitChapters),
+      songs: await this.getSongs.getDirectUrlSongs(query, shouldSplitChapters, playlistLimit),
       extraMsg: '',
       uncertainSpotifyTracks: [],
     };
@@ -235,7 +238,10 @@ export default class AddQueryToQueue {
 
   private async resolveSpotifyQuery(query: string, playlistLimit: number, shouldSplitChapters: boolean): Promise<QueueResolution> {
     const [tracks, playlist] = await this.getSongs.getSpotifyTracks(query, playlistLimit);
-    const resolutions = await Promise.all(tracks.map(async track => this.spotifyTrackResolver.resolve(track, shouldSplitChapters, playlist)));
+    const limit = pLimit(SPOTIFY_TRACK_RESOLVE_CONCURRENCY);
+    const resolutions = await Promise.all(tracks.map(async track => limit(
+      async () => this.spotifyTrackResolver.resolve(track, shouldSplitChapters, playlist),
+    )));
 
     const songsByTrack: SongMetadata[][] = tracks.map(() => []);
     const songsNotFound: string[] = [];
