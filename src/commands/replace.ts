@@ -172,6 +172,8 @@ export default class implements Command {
       songs: [song],
       titleMatch: false,
       exactTitleMatch: false,
+      artistMatch: false,
     };
   }
 }
+
