@@ -39,17 +39,7 @@ assert.equal(
   'does not require Spotify artist names to match YouTube channel names',
 );
 
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('#AiScReam 「愛♡スクリ～ム！」 Music Video', '(Love Live! series) Official Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
-  true,
-  'allows official uploads where the artist tag prefixes the song title',
-);
 
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Love Triangle - DiverDiva', 'DiverDiva - Topic'), track('Love Triangle', 'DiverDiva')),
-  true,
-  'allows official uploads where the artist wraps the title',
-);
 
 assert.equal(
   isSpotifyVideoCandidateAllowed(video('Starlight', 'Muse - Topic'), track('Supermassive Black Hole')),
@@ -146,3 +136,4 @@ assert.equal(
   false,
   'rejects candidates with clearly wrong durations',
 );
+

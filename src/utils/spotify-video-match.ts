@@ -33,44 +33,15 @@ const removeOfficialTitleText = (value: string): string => value
   .replace(/\s+/g, ' ')
   .trim();
 
-const stripWrappingPunctuation = (value: string): string => value
-  .replace(/^[#"'`([{<\s]+/u, '')
-  .replace(/[#"'`)\]}>。\s]+$/u, '')
-  .trim();
-
 const removeArtistFromTitle = (title: string, artist: string): string => {
   if (!artist) {
     return title;
   }
 
   return title
-    .replace(new RegExp(`^#?${escapeRegExp(artist)}\\s+`, 'u'), '')
-    .replace(new RegExp(`\\s+#?${escapeRegExp(artist)}$`, 'u'), '')
+    .replace(new RegExp(`^${escapeRegExp(artist)}\\s+`, 'u'), '')
+    .replace(new RegExp(`\\s+${escapeRegExp(artist)}$`, 'u'), '')
     .trim();
-};
-
-const removeTrackNameFromTitle = (title: string, name: string): string => title
-  .replace(new RegExp(`^${escapeRegExp(name)}\\s*`, 'u'), '')
-  .replace(new RegExp(`\\s*${escapeRegExp(name)}$`, 'u'), '')
-  .trim();
-
-const hasLooseTitleMatch = (title: string, name: string, artist: string): boolean => {
-  if (!title.includes(name)) {
-    return false;
-  }
-
-  const titleWithoutArtist = stripWrappingPunctuation(removeArtistFromTitle(title, artist));
-  const titleWithoutName = stripWrappingPunctuation(removeTrackNameFromTitle(titleWithoutArtist, name));
-
-  if (titleWithoutArtist === name) {
-    return true;
-  }
-
-  if (!titleWithoutArtist.includes(name)) {
-    return false;
-  }
-
-  return titleWithoutName.length > 0 && titleWithoutName.length <= 18;
 };
 
 export const hasNonSongSignals = (title: string, channel: string): boolean => {
@@ -108,12 +79,11 @@ export const getSpotifyTitleMatch = (video: SpotifyVideoCandidate, track: TrackS
   const name = normalizeSearchText(track.name);
   const artist = normalizeSearchText(track.artist);
   const titleWithoutOfficialText = removeOfficialTitleText(title);
-  const titleWithoutArtist = stripWrappingPunctuation(removeArtistFromTitle(titleWithoutOfficialText, artist));
+  const titleWithoutArtist = removeArtistFromTitle(titleWithoutOfficialText, artist);
 
   const titleMatch = title === name
     || titleWithoutOfficialText === name
-    || titleWithoutArtist === name
-    || hasLooseTitleMatch(titleWithoutOfficialText, name, artist);
+    || titleWithoutArtist === name;
 
   return {
     title,

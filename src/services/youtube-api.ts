@@ -150,6 +150,30 @@ export default class {
     });
   }
 
+  async searchSpotifyTrackFallbackCandidates({name, artist, durationMs, shouldSplitChapters, limit = 3}: {
+    name: string;
+    artist: string;
+    durationMs?: number;
+    shouldSplitChapters: boolean;
+    limit?: number;
+  }): Promise<SongSelectionCandidate[]> {
+    const normalizedName = name.trim();
+    const normalizedArtist = artist.trim();
+
+    return this.searchRankedCandidates({
+      queries: [
+        `"${normalizedName}" "${normalizedArtist}"`,
+        `"${normalizedName}"`,
+        normalizedName,
+      ],
+      shouldSplitChapters,
+      track: {name: normalizedName, artist: normalizedArtist, durationMs},
+      searchLimit: 25,
+      resultLimit: limit,
+      spotifyCandidateMode: 'fallback',
+    });
+  }
+
   async getVideo(url: string, shouldSplitChapters: boolean): Promise<SongMetadata[]> {
     const videoId = url.length === 11 ? url : getYouTubeID(url);
 
@@ -246,12 +270,13 @@ export default class {
     return songsToReturn;
   }
 
-  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5}: {
+  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5, spotifyCandidateMode = 'strict'}: {
     queries: string[];
     shouldSplitChapters: boolean;
     track?: TrackSearchContext;
     searchLimit?: number;
     resultLimit?: number;
+    spotifyCandidateMode?: 'strict' | 'fallback';
   }): Promise<SongSelectionCandidate[]> {
     const seenIds = new Set<string>();
     const ids: string[] = [];
@@ -297,7 +322,7 @@ export default class {
       : videos;
 
     const candidates = track
-      ? ranked.filter(video => isSpotifyVideoCandidateAllowed(video, track) && this.isSpotifyDurationCandidateAllowed(video, track))
+      ? ranked.filter(video => this.isSpotifyTrackCandidateAllowed(video, track, spotifyCandidateMode))
       : ranked;
 
     candidates.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
@@ -470,6 +495,24 @@ export default class {
     return isSpotifyDurationCandidateAllowed(toSeconds(parse(video.contentDetails.duration)), track);
   }
 
+  private isSpotifyTrackCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext, mode: 'strict' | 'fallback'): boolean {
+    if (!this.isSpotifyDurationCandidateAllowed(video, track)) {
+      return false;
+    }
+
+    if (mode === 'strict') {
+      return isSpotifyVideoCandidateAllowed(video, track);
+    }
+
+    const {title, channel, name, artist} = getSpotifyTitleMatch(video, track);
+
+    if (hasNonSongSignals(title, channel)) {
+      return false;
+    }
+
+    return title.includes(name) || title.includes(artist) || channel.includes(artist);
+  }
+
   private getDurationDeltaSeconds(video: VideoDetailsResponse, track: TrackSearchContext): number | undefined {
     if (!track.durationMs) {
       return undefined;
@@ -623,3 +666,5 @@ export default class {
     return videos;
   }
 }
+
+

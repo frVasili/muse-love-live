@@ -51,6 +51,24 @@ export default class SpotifyTrackResolver {
       };
     }
 
+    if (decision.status === 'not-found') {
+      const fallbackCandidates = await this.youtubeAPI.searchSpotifyTrackFallbackCandidates({
+        name: track.name,
+        artist: track.artist,
+        durationMs: track.durationMs,
+        shouldSplitChapters,
+        limit: 3,
+      });
+
+      if (fallbackCandidates.length > 0) {
+        return {
+          status: 'uncertain',
+          candidates: fallbackCandidates,
+          songs: [],
+        };
+      }
+    }
+
     return {
       status: decision.status,
       candidates,
@@ -77,3 +95,4 @@ export default class SpotifyTrackResolver {
     await this.mappingStore.upsert(track, candidate, confirmedByUserId);
   }
 }
+
