@@ -43,7 +43,7 @@ export interface SpotifyOrigin {
   spotifyName: string;
   spotifyArtist: string;
   spotifyDurationMs?: number;
-  matchSource: 'saved' | 'high-confidence' | 'confirmed' | 'timeout-top';
+  matchSource: 'high-confidence';
 }
 
 export interface SongMetadata {

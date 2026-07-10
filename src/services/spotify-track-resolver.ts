@@ -6,7 +6,7 @@ import YoutubeAPI, {SongSelectionCandidate} from './youtube-api.js';
 import {classifySpotifyCandidates} from '../utils/spotify-track-resolution.js';
 
 export type SpotifyTrackResolution = {
-  status: 'saved' | 'high-confidence' | 'uncertain' | 'not-found';
+  status: 'high-confidence' | 'uncertain' | 'not-found';
   candidates: SongSelectionCandidate[];
   songs: SongMetadata[];
 };
@@ -18,13 +18,13 @@ export default class SpotifyTrackResolver {
   ) {}
 
   async resolve(track: SpotifyTrack, shouldSplitChapters: boolean, playlist?: QueuedPlaylist): Promise<SpotifyTrackResolution> {
-    const candidates = await this.youtubeAPI.searchSpotifyTrackCandidates({
+    let candidates = await this.youtubeAPI.searchSpotifyTrackCandidates({
       name: track.name,
       artist: track.artist,
       durationMs: track.durationMs,
       shouldSplitChapters,
     });
-    const decision = classifySpotifyCandidates(candidates);
+    let decision = classifySpotifyCandidates(candidates);
 
     if (decision.status === 'high-confidence' && decision.selectedCandidate) {
       return {
@@ -34,7 +34,7 @@ export default class SpotifyTrackResolver {
       };
     }
 
-    if (decision.status === 'not-found') {
+    if (decision.status !== 'high-confidence') {
       const fallbackCandidates = await this.youtubeAPI.searchSpotifyTrackFallbackCandidates({
         name: track.name,
         artist: track.artist,
@@ -43,11 +43,20 @@ export default class SpotifyTrackResolver {
         limit: 3,
       });
 
-      if (fallbackCandidates.length > 0) {
+      const candidatesById = new Map(candidates.map(candidate => [candidate.videoId, candidate]));
+
+      for (const candidate of fallbackCandidates) {
+        candidatesById.set(candidate.videoId, candidate);
+      }
+
+      candidates = [...candidatesById.values()].sort((a, b) => b.score - a.score);
+      decision = classifySpotifyCandidates(candidates);
+
+      if (decision.status === 'high-confidence' && decision.selectedCandidate) {
         return {
-          status: 'uncertain',
-          candidates: fallbackCandidates,
-          songs: [],
+          status: 'high-confidence',
+          candidates,
+          songs: this.attachSpotifyOrigin(track, decision.selectedCandidate.songs, 'high-confidence', playlist),
         };
       }
     }

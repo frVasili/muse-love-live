@@ -5,6 +5,7 @@ import {TYPES} from '../types.js';
 import {DATA_DIR} from '../services/config.js';
 import type SpotifyQueueResolver from '../services/spotify-queue-resolver.js';
 import type {SpotifyQueuedTrackResolution} from '../services/spotify-queue-resolver.js';
+import type GetSongs from '../services/get-songs.js';
 import type {SongSelectionCandidate} from '../services/youtube-api.js';
 import {prettyTime} from '../utils/time.js';
 
@@ -201,7 +202,7 @@ const buildFlags = (resolution: SpotifyQueuedTrackResolution): string[] => {
     flags.push('remix-or-edit');
   }
 
-  if (/\b(lyric|lyrics|translation|translated|subbed|subtitle|subtitles|color coded)\b/.test(text)) {
+  if (/\b(lyric|lyrics|translation|translated|subbed|subtitle|subtitles|color coded)\b/.test(text) && candidate.spotifySource !== 'official-audio') {
     flags.push('lyrics-or-subs');
   }
 
@@ -225,12 +226,8 @@ const buildFlags = (resolution: SpotifyQueuedTrackResolution): string[] => {
     flags.push('not-exact-title');
   }
 
-  if (!candidate.artistMatch && !/\b(topic|official|provided to youtube)\b/.test(text)) {
+  if (!candidate.artistMatch && candidate.spotifySource === 'unofficial') {
     flags.push('non-official-looking-upload');
-  }
-
-  if (resolution.matchSource === 'timeout-top') {
-    flags.push('bot-timeout-top');
   }
 
   return flags;
@@ -360,11 +357,12 @@ const printSummary = (rows: AuditRow[], reportPaths: string[]) => {
 (async () => {
   const options = parseArgs(process.argv.slice(2));
   const {default: container} = await import('../inversify.config.js');
+  const getSongs = container.get<GetSongs>(TYPES.Services.GetSongs);
   const spotifyQueueResolver = container.get<SpotifyQueueResolver>(TYPES.Services.SpotifyQueueResolver);
-  const fullResolution = await spotifyQueueResolver.resolveQuery(options.playlistUrl, Number.MAX_SAFE_INTEGER, false);
-  const indexes = sampleIndexes(fullResolution.tracks.length, options.sampleSize, options.seed);
-  const sampledTracks = indexes.map(index => fullResolution.tracks[index]);
-  const sampledResolution = await spotifyQueueResolver.resolveTracks(sampledTracks, false, fullResolution.playlist);
+  const [tracks, playlist] = await getSongs.getSpotifyTracks(options.playlistUrl, Number.MAX_SAFE_INTEGER);
+  const indexes = sampleIndexes(tracks.length, options.sampleSize, options.seed);
+  const sampledTracks = indexes.map(index => tracks[index]);
+  const sampledResolution = await spotifyQueueResolver.resolveTracks(sampledTracks, false, playlist);
   const rows = toAuditRows(sampledResolution.trackResolutions, indexes, options.includeAlternates);
   const reportPaths = await writeReports(rows, options);
 

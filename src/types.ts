@@ -14,7 +14,6 @@ export const TYPES = {
     ButtonChoicePrompt: Symbol('ButtonChoicePrompt'),
     GetSongs: Symbol('GetSongs'),
     SpotifyQueueResolver: Symbol('SpotifyQueueResolver'),
-    SpotifyTrackMappingStore: Symbol('SpotifyTrackMappingStore'),
     SpotifyTrackResolver: Symbol('SpotifyTrackResolver'),
     YoutubeAPI: Symbol('YoutubeAPI'),
     SpotifyAPI: Symbol('SpotifyAPI'),

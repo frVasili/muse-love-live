@@ -5,9 +5,10 @@ import Spotify from 'spotify-web-api-node';
 import {TYPES} from '../types.js';
 import ThirdParty from './third-party.js';
 import {QueuedPlaylist} from './player.js';
-import SpotifyScraper, {SpotifyTrack} from './spotify-scraper.js';
+import SpotifyScraper from './spotify-scraper.js';
+import type {SpotifyTrack} from './spotify-scraper.js';
 
-export {SpotifyTrack};
+export type {SpotifyTrack};
 
 type SpotifyPlaylistItem = SpotifyApi.PlaylistTrackObject & {
   item?: SpotifyApi.TrackObjectFull | SpotifyApi.EpisodeObjectFull | null;

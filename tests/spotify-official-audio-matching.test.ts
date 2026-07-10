@@ -1,163 +1,76 @@
-import {strict as assert} from 'node:assert';
-import {isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed} from '../src/utils/spotify-video-match.js';
+import assert from 'node:assert/strict';
+import {classifySpotifyCandidates} from '../src/utils/spotify-track-resolution.js';
+import {
+  buildSpotifySearchQuery,
+  getSpotifyTitleMatch,
+  isSpotifyDurationCandidateAllowed,
+  isSpotifyVideoCandidateAllowed,
+  scoreSpotifyVideoMatch,
+} from '../src/utils/spotify-video-match.js';
 import type {SpotifyVideoCandidate, TrackSearchContext} from '../src/utils/spotify-video-match.js';
+import type {SongSelectionCandidate} from '../src/services/youtube-api.js';
 
-const track = (name: string, artist = 'Muse', durationMs = 240_000): TrackSearchContext => ({
-  name,
-  artist,
-  durationMs,
+const track = (name: string, artist = '日本語アーティスト', durationMs = 240_000): TrackSearchContext => ({name, artist, durationMs});
+const video = (title: string, channelTitle: string): SpotifyVideoCandidate => ({snippet: {title, channelTitle}});
+
+const unicodeTrack = track('星のシグナル！');
+const romanizedTopic = video('星のシグナル！', 'Romanized Artist - Topic');
+const topicMatch = getSpotifyTitleMatch(romanizedTopic, unicodeTrack);
+
+assert.equal(topicMatch.exactTitleMatch, true, 'matches Unicode titles after punctuation normalization');
+assert.equal(topicMatch.artistMatch, false, 'does not require Japanese and romanized artist names to match');
+assert.equal(topicMatch.source, 'topic', 'recognizes Topic channels independently of artist spelling');
+assert.equal(isSpotifyVideoCandidateAllowed(romanizedTopic, unicodeTrack), true);
+assert.equal(buildSpotifySearchQuery(unicodeTrack, true), '"星のシグナル！" 日本語アーティスト', 'uses one focused artist-aware query');
+assert.equal(buildSpotifySearchQuery(unicodeTrack, false), '"星のシグナル！"', 'uses one title-only fallback query');
+
+const officialLyrics = video('Example Unit『星のシグナル！』Official Lyric Video', '(Example series)公式チャンネル');
+const officialLyricsTrack = track('星のシグナル！', 'Example Unit');
+const officialLyricsMatch = getSpotifyTitleMatch(officialLyrics, officialLyricsTrack);
+
+assert.equal(officialLyricsMatch.exactTitleMatch, true);
+assert.equal(officialLyricsMatch.source, 'official-audio');
+assert.equal(isSpotifyVideoCandidateAllowed(officialLyrics, officialLyricsTrack), true, 'accepts official lyric audio');
+assert.equal(
+  getSpotifyTitleMatch(video('Music (Official Audio)', 'Example - Topic'), track('Music', 'Example')).exactTitleMatch,
+  true,
+  'does not strip words that are part of the Spotify title',
+);
+
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Lyrics', 'Fan Lyrics'), unicodeTrack), false, 'rejects unofficial lyric uploads');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ covered by Fan', 'Fan'), unicodeTrack), false, 'rejects covers');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ (Off Vocal)', 'Example - Topic'), unicodeTrack), false, 'rejects non-vocal versions');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Live at Arena', 'Official Channel'), unicodeTrack), false, 'rejects live versions even on official channels');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Remix', 'Example - Topic'), unicodeTrack), false, 'rejects an unexpected remix');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Remix', 'Example - Topic'), track('星のシグナル！ Remix')), true, 'allows a remix identified by Spotify');
+
+assert.equal(isSpotifyDurationCandidateAllowed(260, unicodeTrack), true);
+assert.equal(isSpotifyDurationCandidateAllowed(261, unicodeTrack), false, 'limits candidates to twenty seconds of Spotify duration');
+
+const unofficialMatch = getSpotifyTitleMatch(video('日本語アーティスト - 星のシグナル！', 'Fan Upload'), unicodeTrack);
+assert.ok(scoreSpotifyVideoMatch(topicMatch, 2) > scoreSpotifyVideoMatch(unofficialMatch, 0), 'prefers Topic audio over a duration-perfect unofficial upload');
+
+const candidate = (overrides: Partial<SongSelectionCandidate>): SongSelectionCandidate => ({
+  videoId: 'video-id',
+  title: '星のシグナル！',
+  artist: 'Romanized Artist - Topic',
+  length: 240,
+  thumbnailUrl: null,
+  isLive: false,
+  score: 1000,
+  songs: [],
+  titleMatch: true,
+  exactTitleMatch: true,
+  artistMatch: false,
+  spotifySource: 'topic',
+  durationDeltaSeconds: 2,
+  ...overrides,
 });
 
-const video = (title: string, channelTitle = 'Muse - Topic'): SpotifyVideoCandidate => ({
-  snippet: {
-    title,
-    channelTitle,
-  },
-});
-
+assert.equal(classifySpotifyCandidates([candidate({})]).status, 'high-confidence', 'accepts Topic audio without an artist-name match');
 assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole'), track('Supermassive Black Hole')),
-  true,
-  'allows an exact official title match',
+  classifySpotifyCandidates([candidate({exactTitleMatch: false, titleMatch: true, spotifySource: 'topic'})]).status,
+  'high-confidence',
+  'accepts a Topic title prefixed by a differently romanized artist name',
 );
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Muse - Supermassive Black Hole (Official Audio)', 'Muse'), track('Supermassive Black Hole')),
-  true,
-  'allows an official artist-title upload',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Phantom Rocket Adventure - Guilty Kiss', 'Guilty Kiss - Topic'), track('Phantom Rocket Adventure', 'Guilty Kiss')),
-  true,
-  'allows an artist suffix from a Topic channel when the remaining title is exact',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Snow halation', 'Official Artist Channel'), track('Snow halation', 'Spotify Artist')),
-  true,
-  'does not require Spotify artist names to match YouTube channel names',
-);
-
-
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Starlight', 'Muse - Topic'), track('Supermassive Black Hole')),
-  false,
-  'rejects a wrong title even from the right artist/channel',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole', 'Different Artist Channel'), track('Supermassive Black Hole')),
-  true,
-  'allows exact-title uploads even when channel names do not match Spotify',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Hololive 3rd Generation - 輝夜の城で踊りたい', 'Random Channel'), track('輝夜の城で踊りたい', 'Spotify Artist')),
-  false,
-  'rejects long unrelated titles that only contain the Spotify title',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Starlight', 'Muse - Topic'), track('Supermassive Black Hole', 'Muse', 240_000)),
-  false,
-  'rejects a wrong title even when duration is perfect',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole Cover', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects unofficial cover uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('『 愛♡スクリ～ム！ / AiScReam 』covered by くらのん', 'くらのん'), track('愛♡スクリ～ム！', 'AiScReam')),
-  false,
-  'rejects covered-by uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('AiScReam - 愛♡スクリ～ム！ (Official Audio)', 'Love Live! series'), track('愛♡スクリ～ム！', 'AiScReam')),
-  true,
-  'allows the official AiScReam artist-title upload',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole Remix', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects unofficial remix uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole Reaction', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects reaction uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole Lyrics', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects lyric reuploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Snow halation Color Coded Lyrics', 'Random Channel'), track('Snow halation')),
-  false,
-  'rejects color-coded lyric uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole live at Wembley', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects obvious live performance uploads without rejecting Love Live metadata',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Supermassive Black Hole #shorts', 'Random Channel'), track('Supermassive Black Hole')),
-  false,
-  'rejects shorts-style uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('Cutie Panther Mirror', 'Random Channel'), track('Cutie Panther', 'BiBi')),
-  false,
-  'rejects mirrored uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('レム (Off Vocal)', 'DOLLCHESTRA - Topic'), track('レム', 'DOLLCHESTRA')),
-  false,
-  'rejects off-vocal versions',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('【ガイドなし】愛♡スクリ～ム！/AiScReam【カラオケ】', 'Random Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
-  false,
-  'rejects Japanese karaoke uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('【創作譜面】愛♡スクリ～ム (フルver.) / AiScReam （OpenTaiko・太鼓さん次郎）', 'Random Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
-  false,
-  'rejects rhythm-game chart uploads',
-);
-
-assert.equal(
-  isSpotifyVideoCandidateAllowed(video('AiScReam - 愛♡スクリ～ム！(Türkçe Çeviri)', 'Random Channel'), track('愛♡スクリ～ム！', 'AiScReam')),
-  false,
-  'rejects translated uploads',
-);
-
-assert.equal(
-  isSpotifyDurationCandidateAllowed(240, track('Supermassive Black Hole', 'Muse', 240_000)),
-  true,
-  'allows close Spotify candidate durations',
-);
-
-assert.equal(
-  isSpotifyDurationCandidateAllowed(320, track('Supermassive Black Hole', 'Muse', 240_000)),
-  false,
-  'rejects candidates with clearly wrong durations',
-);
-
+assert.equal(classifySpotifyCandidates([candidate({spotifySource: 'unofficial', artistMatch: false, durationDeltaSeconds: 8})]).status, 'uncertain', 'does not auto-accept a weakly attributed unofficial upload');

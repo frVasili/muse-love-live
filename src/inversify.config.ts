@@ -14,7 +14,6 @@ import ButtonChoicePrompt from './services/button-choice-prompt.js';
 import GetSongs from './services/get-songs.js';
 import YoutubeAPI from './services/youtube-api.js';
 import SpotifyAPI from './services/spotify-api.js';
-import SpotifyTrackMappingStore from './services/spotify-track-mapping-store.js';
 import SpotifyQueueResolver from './services/spotify-queue-resolver.js';
 import SpotifyTrackResolver from './services/spotify-track-resolver.js';
 
@@ -41,7 +40,6 @@ import Seek from './commands/seek.js';
 import Shuffle from './commands/shuffle.js';
 import Skip from './commands/skip.js';
 import Stop from './commands/stop.js';
-import SpotifyCommand from './commands/spotify.js';
 import Unskip from './commands/unskip.js';
 import Volume from './commands/volume.js';
 import ThirdParty from './services/third-party.js';
@@ -74,7 +72,6 @@ container.bind<SpotifyQueueResolver>(TYPES.Services.SpotifyQueueResolver).toDyna
   context.container.get<GetSongs>(TYPES.Services.GetSongs),
   context.container.get<SpotifyTrackResolver>(TYPES.Services.SpotifyTrackResolver),
 )).inSingletonScope();
-container.bind<SpotifyTrackMappingStore>(TYPES.Services.SpotifyTrackMappingStore).to(SpotifyTrackMappingStore).inSingletonScope();
 container.bind<SpotifyTrackResolver>(TYPES.Services.SpotifyTrackResolver).to(SpotifyTrackResolver).inSingletonScope();
 container.bind<YoutubeAPI>(TYPES.Services.YoutubeAPI).to(YoutubeAPI).inSingletonScope();
 container.bind<SpotifyAPI>(TYPES.Services.SpotifyAPI).to(SpotifyAPI).inSingletonScope();
@@ -107,7 +104,6 @@ if (config.SPOTIFY_CLIENT_ID !== '' && config.SPOTIFY_CLIENT_SECRET !== '') {
   Seek,
   Shuffle,
   Skip,
-  SpotifyCommand,
   Stop,
   Unskip,
   Volume,

@@ -1,7 +1,6 @@
 import {inject, injectable} from 'inversify';
 import {toSeconds, parse} from 'iso8601-duration';
 import got, {Got} from 'got';
-import ytsr from '@distube/ytsr';
 import {SongMetadata, QueuedPlaylist, MediaSource} from './player.js';
 import {TYPES} from '../types.js';
 import Config from './config.js';
@@ -9,8 +8,8 @@ import KeyValueCacheProvider from './key-value-cache.js';
 import {ONE_HOUR_IN_SECONDS, ONE_MINUTE_IN_SECONDS} from '../utils/constants.js';
 import {parseTime} from '../utils/time.js';
 import getYouTubeID from 'get-youtube-id';
-import {getSpotifyTitleMatch, hasNonSongSignals, hasSpotifyVideoPenaltySignals, isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed} from '../utils/spotify-video-match.js';
-import type {TrackSearchContext} from '../utils/spotify-video-match.js';
+import {buildSpotifySearchQuery, getSpotifyTitleMatch, isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed, scoreSpotifyVideoMatch} from '../utils/spotify-video-match.js';
+import type {SpotifyVideoSource, TrackSearchContext} from '../utils/spotify-video-match.js';
 
 interface VideoDetailsResponse {
   id: string;
@@ -75,6 +74,7 @@ export interface SongSelectionCandidate {
   titleMatch: boolean;
   exactTitleMatch: boolean;
   artistMatch: boolean;
+  spotifySource?: SpotifyVideoSource;
   durationDeltaSeconds?: number;
 }
 
@@ -111,23 +111,6 @@ export default class {
     });
   }
 
-  async searchSpotifyTrack({name, artist, durationMs, shouldSplitChapters}: {
-    name: string;
-    artist: string;
-    durationMs?: number;
-    shouldSplitChapters: boolean;
-  }): Promise<SongMetadata[]> {
-    const [candidate] = await this.searchSpotifyTrackCandidates({
-      name,
-      artist,
-      durationMs,
-      shouldSplitChapters,
-      limit: 1,
-    });
-
-    return candidate?.songs ?? [];
-  }
-
   async searchSpotifyTrackCandidates({name, artist, durationMs, shouldSplitChapters, limit = 5}: {
     name: string;
     artist: string;
@@ -139,7 +122,7 @@ export default class {
     const normalizedArtist = artist.trim();
 
     return this.searchRankedCandidates({
-      queries: this.getSpotifyTrackQueries(normalizedName, normalizedArtist),
+      queries: [buildSpotifySearchQuery({name: normalizedName, artist: normalizedArtist}, true)],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
@@ -158,12 +141,11 @@ export default class {
     const normalizedArtist = artist.trim();
 
     return this.searchRankedCandidates({
-      queries: this.getSpotifyTrackQueries(normalizedName, normalizedArtist),
+      queries: [buildSpotifySearchQuery({name: normalizedName, artist: normalizedArtist}, false)],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
       resultLimit: limit,
-      spotifyCandidateMode: 'fallback',
     });
   }
 
@@ -269,59 +251,50 @@ export default class {
     return songsToReturn;
   }
 
-  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5, spotifyCandidateMode = 'strict'}: {
+  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5}: {
     queries: string[];
     shouldSplitChapters: boolean;
     track?: TrackSearchContext;
     searchLimit?: number;
     resultLimit?: number;
-    spotifyCandidateMode?: 'strict' | 'fallback';
   }): Promise<SongSelectionCandidate[]> {
     const seenIds = new Set<string>();
     const ids: string[] = [];
-    let apiSearchFailed = false;
-
     for (const query of queries) {
-      let searchIds: string[];
-
       try {
         // eslint-disable-next-line no-await-in-loop
-        searchIds = await this.searchVideoIds(query, searchLimit);
-      } catch (_: unknown) {
-        apiSearchFailed = true;
-        continue;
-      }
+        const searchIds = await this.searchVideoIds(query, searchLimit);
 
-      for (const id of searchIds) {
-        if (!seenIds.has(id)) {
-          seenIds.add(id);
-          ids.push(id);
+        for (const id of searchIds) {
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            ids.push(id);
+          }
         }
-      }
-    }
-
-    let videos: VideoDetailsResponse[] = [];
-
-    if (ids.length > 0) {
-      try {
-        videos = await this.getVideosByID(ids);
       } catch (_: unknown) {
-        apiSearchFailed = true;
+        // A failed search produces no candidates. The caller can report the
+        // affected Spotify track without failing the rest of a playlist.
       }
     }
 
-    let scrapedVideos: VideoDetailsResponse[] = [];
-
-    if (track || (videos.length === 0 && apiSearchFailed)) {
-      scrapedVideos = await this.searchScrapedVideos(queries, searchLimit);
+    if (ids.length === 0) {
+      return [];
     }
 
-    const ranked = this.mergeRankedVideos(ids, videos, scrapedVideos);
+    let videos: VideoDetailsResponse[];
+
+    try {
+      videos = await this.getVideosByID(ids);
+    } catch (_: unknown) {
+      return [];
+    }
+
+    const ranked = this.orderVideosBySearchRank(ids, videos);
 
     const validRanked = ranked.filter(video => this.getVideoLengthSeconds(video) !== null);
 
     const candidates = track
-      ? validRanked.filter(video => this.isSpotifyTrackCandidateAllowed(video, track, spotifyCandidateMode))
+      ? validRanked.filter(video => this.isSpotifyTrackCandidateAllowed(video, track))
       : validRanked;
 
     candidates.sort((a, b) => this.scoreVideo(b, track) - this.scoreVideo(a, track));
@@ -354,95 +327,9 @@ export default class {
       .filter(Boolean);
   }
 
-  private async searchScrapedVideos(queries: string[], limit: number): Promise<VideoDetailsResponse[]> {
-    const seenIds = new Set<string>();
-    const videos: VideoDetailsResponse[] = [];
-
-    for (const query of queries) {
-      let result: Awaited<ReturnType<typeof ytsr>>;
-
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        result = await ytsr(query, {type: 'video', limit});
-      } catch (_: unknown) {
-        continue;
-      }
-
-      for (const item of result.items) {
-        if (seenIds.has(item.id) || !item.duration) {
-          continue;
-        }
-
-        const duration = parseTime(item.duration);
-
-        if (!Number.isFinite(duration) || duration <= 0) {
-          continue;
-        }
-
-        seenIds.add(item.id);
-        videos.push({
-          id: item.id,
-          contentDetails: {
-            videoId: item.id,
-            duration: `PT${duration}S`,
-          },
-          snippet: {
-            title: item.name,
-            channelTitle: item.author?.name ?? '',
-            liveBroadcastContent: item.isLive ? 'live' : 'none',
-            description: '',
-            thumbnails: {
-              medium: {
-                url: item.thumbnail,
-              },
-            },
-          },
-        });
-      }
-    }
-
-    return videos;
-  }
-
-  private getSpotifyTrackQueries(name: string, artist: string): string[] {
-    return Array.from(new Set([
-      `"${name}" "${artist}"`,
-      `${artist} ${name}`,
-      `${name} ${artist}`,
-      `"${name}"`,
-      name,
-    ]));
-  }
-
-  private mergeRankedVideos(ids: string[], apiVideos: VideoDetailsResponse[], scrapedVideos: VideoDetailsResponse[]): VideoDetailsResponse[] {
-    const ranked: VideoDetailsResponse[] = [];
-    const seenIds = new Set<string>();
-
-    for (const id of ids) {
-      const video = apiVideos.find(candidate => candidate.id === id);
-
-      if (!video || seenIds.has(video.id)) {
-        continue;
-      }
-
-      seenIds.add(video.id);
-      ranked.push(video);
-    }
-
-    for (const video of scrapedVideos) {
-      if (seenIds.has(video.id)) {
-        continue;
-      }
-
-      seenIds.add(video.id);
-      ranked.push(video);
-    }
-
-    if (ranked.length > 0) {
-      return ranked;
-    }
-
-    return apiVideos;
+  private orderVideosBySearchRank(ids: string[], videos: VideoDetailsResponse[]): VideoDetailsResponse[] {
+    const rankById = new Map(ids.map((id, index) => [id, index]));
+    return [...videos].sort((a, b) => (rankById.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankById.get(b.id) ?? Number.MAX_SAFE_INTEGER));
   }
 
   private scoreVideo(video: VideoDetailsResponse, track?: TrackSearchContext): number {
@@ -450,97 +337,10 @@ export default class {
       return 0;
     }
 
-    const {title, channel, name, artist, titleMatch, exactTitleMatch, artistMatch} = getSpotifyTitleMatch(video, track);
-    let score = 0;
-
-    if (titleMatch) {
-      score += 160;
-    }
-
-    if (exactTitleMatch) {
-      score += 140;
-    } else if (title.startsWith(name)) {
-      score += 70;
-    }
-
-    if (titleMatch) {
-      score += this.scoreExtraTitleText(title, name);
-    }
-
-    if (channel.endsWith(' topic')) {
-      score += 30;
-    }
-
-    if (channel === `${artist} topic` || channel.includes(`${artist} topic`)) {
-      score += 10;
-    }
-
-    if (artistMatch) {
-      score += 90;
-    }
-
-    if (hasSpotifyVideoPenaltySignals(title)) {
-      score -= 60;
-    }
-
-    if (hasNonSongSignals(title, channel)) {
-      score -= 220;
-    }
-
-    if (track.durationMs) {
-      const expectedSeconds = Math.round(track.durationMs / 1000);
-      const videoLengthSeconds = this.getVideoLengthSeconds(video);
-
-      if (videoLengthSeconds === null) {
-        return score;
-      }
-
-      const delta = Math.abs(videoLengthSeconds - expectedSeconds);
-
-      score += this.scoreDurationDelta(delta);
-    }
-
-    if (!titleMatch) {
-      score -= 250;
-    }
-
-    return score;
-  }
-
-  private scoreDurationDelta(delta: number): number {
-    if (delta <= 1) {
-      return 180;
-    }
-
-    if (delta <= 2) {
-      return 140;
-    }
-
-    if (delta <= 3) {
-      return 100;
-    }
-
-    if (delta <= 5) {
-      return 50;
-    }
-
-    if (delta <= 10) {
-      return 10;
-    }
-
-    if (delta <= 20) {
-      return -20;
-    }
-
-    if (delta <= 30) {
-      return -80;
-    }
-
-    if (delta <= 45) {
-      return -160;
-    }
-
-    return -260;
+    return scoreSpotifyVideoMatch(
+      getSpotifyTitleMatch(video, track),
+      this.getDurationDeltaSeconds(video, track),
+    );
   }
 
   private isSpotifyDurationCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext): boolean {
@@ -549,22 +349,8 @@ export default class {
     return videoLengthSeconds !== null && isSpotifyDurationCandidateAllowed(videoLengthSeconds, track);
   }
 
-  private isSpotifyTrackCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext, mode: 'strict' | 'fallback'): boolean {
-    if (!this.isSpotifyDurationCandidateAllowed(video, track)) {
-      return false;
-    }
-
-    if (mode === 'strict') {
-      return isSpotifyVideoCandidateAllowed(video, track);
-    }
-
-    const {title, channel, name, artistMatch, titleMatch} = getSpotifyTitleMatch(video, track);
-
-    if (hasNonSongSignals(title, channel)) {
-      return false;
-    }
-
-    return artistMatch && (title.includes(name) || titleMatch);
+  private isSpotifyTrackCandidateAllowed(video: VideoDetailsResponse, track: TrackSearchContext): boolean {
+    return this.isSpotifyDurationCandidateAllowed(video, track) && isSpotifyVideoCandidateAllowed(video, track);
   }
 
   private getDurationDeltaSeconds(video: VideoDetailsResponse, track: TrackSearchContext): number | undefined {
@@ -576,24 +362,6 @@ export default class {
     const videoLengthSeconds = this.getVideoLengthSeconds(video);
 
     return videoLengthSeconds === null ? undefined : Math.abs(videoLengthSeconds - expectedSeconds);
-  }
-
-  private scoreExtraTitleText(title: string, name: string): number {
-    const extraTextLength = title.replace(name, '').trim().length;
-
-    if (extraTextLength <= 6) {
-      return 0;
-    }
-
-    if (extraTextLength <= 18) {
-      return -30;
-    }
-
-    if (extraTextLength <= 35) {
-      return -80;
-    }
-
-    return -140;
   }
 
   private getMetadataFromVideo({
@@ -691,9 +459,9 @@ export default class {
 
   private createSongSelectionCandidate(video: VideoDetailsResponse, shouldSplitChapters: boolean, track?: TrackSearchContext): SongSelectionCandidate {
     const songs = this.getMetadataFromVideo({video, shouldSplitChapters});
-    const {titleMatch = false, exactTitleMatch = false, artistMatch = false} = track
+    const {titleMatch = false, exactTitleMatch = false, artistMatch = false, source: spotifySource} = track
       ? getSpotifyTitleMatch(video, track)
-      : {titleMatch: false, exactTitleMatch: false, artistMatch: false};
+      : {titleMatch: false, exactTitleMatch: false, artistMatch: false, source: undefined};
 
     return {
       videoId: video.id,
@@ -707,6 +475,7 @@ export default class {
       titleMatch,
       exactTitleMatch,
       artistMatch,
+      ...(spotifySource ? {spotifySource} : {}),
       durationDeltaSeconds: track ? this.getDurationDeltaSeconds(video, track) : undefined,
     };
   }
@@ -721,21 +490,30 @@ export default class {
   }
 
   private async getVideosByID(videoIDs: string[]): Promise<VideoDetailsResponse[]> {
-    const p = {
-      searchParams: {
-        part: 'id, snippet, contentDetails',
-        id: videoIDs.join(','),
-      },
-    };
+    const batches: string[][] = [];
 
-    const {items: videos} = await this.cache.wrap(
-      async () => this.got('videos', p).json() as Promise<{items: VideoDetailsResponse[]}>,
-      p,
-      {
-        expiresIn: ONE_HOUR_IN_SECONDS,
-      },
-    );
-    return videos;
+    for (let index = 0; index < videoIDs.length; index += 50) {
+      batches.push(videoIDs.slice(index, index + 50));
+    }
+
+    const results = await Promise.all(batches.map(async batch => {
+      const params = {
+        searchParams: {
+          part: 'id, snippet, contentDetails',
+          id: batch.join(','),
+        },
+      };
+
+      const {items} = await this.cache.wrap(
+        async () => this.got('videos', params).json() as Promise<{items: VideoDetailsResponse[]}>,
+        params,
+        {expiresIn: ONE_HOUR_IN_SECONDS},
+      );
+
+      return items;
+    }));
+
+    return results.flat();
   }
 }
 

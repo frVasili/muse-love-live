@@ -63,17 +63,3 @@ model PlayerSession {
   volume            Int?
   updatedAt         DateTime @updatedAt
 }
-
-model SpotifyTrackMapping {
-  spotifyTrackId    String   @id
-  spotifyUrl        String
-  spotifyName       String
-  spotifyArtist     String
-  spotifyDurationMs Int?
-  youtubeVideoId    String
-  youtubeUrl        String
-  youtubeTitle      String
-  confirmedByUserId String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}

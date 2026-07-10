@@ -1,5 +1,5 @@
 import pLimit from 'p-limit';
-import type {QueuedPlaylist, SongMetadata, SpotifyOrigin} from './player.js';
+import type {QueuedPlaylist, SongMetadata} from './player.js';
 import type GetSongs from './get-songs.js';
 import type {SpotifyTrack} from './spotify-api.js';
 import type SpotifyTrackResolver from './spotify-track-resolver.js';
@@ -13,7 +13,7 @@ export type SpotifyQueuedTrackResolution = {
   resolution: SpotifyTrackResolution;
   selectedSongs: SongMetadata[];
   selectedCandidate?: SongSelectionCandidate;
-  matchSource: SpotifyOrigin['matchSource'] | 'not-found';
+  matchSource: 'high-confidence' | 'not-found';
 };
 
 export type SpotifyQueueResolution = {
@@ -23,7 +23,6 @@ export type SpotifyQueueResolution = {
   songsByTrack: SongMetadata[][];
   songs: SongMetadata[];
   songsNotFound: SpotifyTrack[];
-  uncertainSpotifyTracks: SpotifyTrack[];
   autoMatchedCount: number;
 };
 
@@ -46,24 +45,18 @@ export default class SpotifyQueueResolver {
 
     const songsByTrack: SongMetadata[][] = tracks.map(() => []);
     const songsNotFound: SpotifyTrack[] = [];
-    const uncertainSpotifyTracks: SpotifyTrack[] = [];
     const trackResolutions: SpotifyQueuedTrackResolution[] = [];
     let autoMatchedCount = 0;
 
     for (const [index, resolution] of resolutions.entries()) {
       const track = tracks[index];
-      const queuedResolution = this.toQueuedResolution(track, resolution, playlist);
+      const queuedResolution = this.toQueuedResolution(track, resolution);
 
       songsByTrack[index] = queuedResolution.selectedSongs;
       trackResolutions.push(queuedResolution);
 
-      if (queuedResolution.matchSource === 'high-confidence' || queuedResolution.matchSource === 'saved') {
+      if (queuedResolution.matchSource === 'high-confidence') {
         autoMatchedCount++;
-        continue;
-      }
-
-      if (queuedResolution.matchSource === 'timeout-top') {
-        uncertainSpotifyTracks.push(track);
         continue;
       }
 
@@ -77,13 +70,12 @@ export default class SpotifyQueueResolver {
       songsByTrack,
       songs: songsByTrack.flat(),
       songsNotFound,
-      uncertainSpotifyTracks,
       autoMatchedCount,
     };
   }
 
-  private toQueuedResolution(track: SpotifyTrack, resolution: SpotifyTrackResolution, playlist?: QueuedPlaylist): SpotifyQueuedTrackResolution {
-    if (resolution.status === 'saved' || resolution.status === 'high-confidence') {
+  private toQueuedResolution(track: SpotifyTrack, resolution: SpotifyTrackResolution): SpotifyQueuedTrackResolution {
+    if (resolution.status === 'high-confidence') {
       return {
         track,
         resolution,
@@ -93,27 +85,11 @@ export default class SpotifyQueueResolver {
       };
     }
 
-    if (resolution.status === 'uncertain' && resolution.candidates.length > 0) {
-      const topCandidate = resolution.candidates[0];
-
-      return {
-        track,
-        resolution,
-        selectedSongs: this.spotifyTrackResolver.attachSpotifyOrigin(
-          track,
-          topCandidate.songs,
-          'timeout-top',
-          playlist,
-        ),
-        selectedCandidate: topCandidate,
-        matchSource: 'timeout-top',
-      };
-    }
-
     return {
       track,
       resolution,
       selectedSongs: [],
+      ...(resolution.candidates[0] ? {selectedCandidate: resolution.candidates[0]} : {}),
       matchSource: 'not-found',
     };
   }
