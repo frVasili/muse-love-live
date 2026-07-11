@@ -19,7 +19,7 @@ const isPreferredSourceMatch = (candidate: SongSelectionCandidate): boolean => c
 
 const isStrongUnofficialMatch = (candidate: SongSelectionCandidate): boolean => candidate.exactTitleMatch
   && candidate.artistMatch
-  && hasDurationWithin(candidate, 5);
+  && hasDurationWithin(candidate, 10);
 
 const isDurationFingerprintMatch = (candidate: SongSelectionCandidate): boolean => candidate.exactTitleMatch
   && hasDurationWithin(candidate, 2);

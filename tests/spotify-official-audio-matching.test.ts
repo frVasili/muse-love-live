@@ -43,6 +43,10 @@ assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ (Off Vo
 assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Live at Arena', 'Official Channel'), unicodeTrack), false, 'rejects live versions even on official channels');
 assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Remix', 'Example - Topic'), unicodeTrack), false, 'rejects an unexpected remix');
 assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Remix', 'Example - Topic'), track('星のシグナル！ Remix')), true, 'allows a remix identified by Spotify');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ (Character Solo Ver.)', 'Character - Topic'), unicodeTrack), false, 'rejects an unexpected solo version');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Character Solo Ver.', 'Character - Topic'), track('星のシグナル！ Character Solo Ver.')), true, 'allows a solo version identified by Spotify');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ but no chorus', 'Fan Upload'), unicodeTrack), false, 'rejects deliberately altered versions');
+assert.equal(isSpotifyVideoCandidateAllowed(video('星のシグナル！ Esp Rom', 'Fan Upload'), unicodeTrack), false, 'rejects unofficial translation and romanization uploads');
 
 assert.equal(isSpotifyDurationCandidateAllowed(260, unicodeTrack), true);
 assert.equal(isSpotifyDurationCandidateAllowed(261, unicodeTrack), false, 'limits candidates to twenty seconds of Spotify duration');

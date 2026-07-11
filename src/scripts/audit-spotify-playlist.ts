@@ -367,6 +367,7 @@ const printSummary = (rows: AuditRow[], reportPaths: string[]) => {
   const reportPaths = await writeReports(rows, options);
 
   printSummary(rows, reportPaths);
+  process.exit(0);
 })().catch(error => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
