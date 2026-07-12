@@ -261,19 +261,16 @@ export default class {
     const seenIds = new Set<string>();
     const ids: string[] = [];
     for (const query of queries) {
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const searchIds = await this.searchVideoIds(query, searchLimit);
+      // Search failures must propagate: treating quota exhaustion or an API
+      // outage as an empty result incorrectly reports valid songs as missing.
+      // eslint-disable-next-line no-await-in-loop
+      const searchIds = await this.searchVideoIds(query, searchLimit);
 
-        for (const id of searchIds) {
-          if (!seenIds.has(id)) {
-            seenIds.add(id);
-            ids.push(id);
-          }
+      for (const id of searchIds) {
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          ids.push(id);
         }
-      } catch (_: unknown) {
-        // A failed search produces no candidates. The caller can report the
-        // affected Spotify track without failing the rest of a playlist.
       }
     }
 
@@ -281,13 +278,7 @@ export default class {
       return [];
     }
 
-    let videos: VideoDetailsResponse[];
-
-    try {
-      videos = await this.getVideosByID(ids);
-    } catch (_: unknown) {
-      return [];
-    }
+    const videos = await this.getVideosByID(ids);
 
     const ranked = this.orderVideosBySearchRank(ids, videos);
 

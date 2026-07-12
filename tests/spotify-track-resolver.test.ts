@@ -82,3 +82,21 @@ assert.equal(fallbackResolution.status, 'high-confidence');
 assert.equal(fallbackResolution.candidates[0].videoId, fallbackMatch.videoId);
 assert.equal(primaryCalls, 1);
 assert.equal(fallbackCalls, 1, 'runs at most one Topic fallback for an uncertain primary result');
+
+fallbackCalls = 0;
+const failedSearchApi = {
+  async searchSpotifyTrackCandidates() {
+    throw new Error('Response code 429 (Too Many Requests)');
+  },
+  async searchSpotifyTrackFallbackCandidates() {
+    fallbackCalls++;
+    return [];
+  },
+} as unknown as YoutubeAPI;
+
+await assert.rejects(
+  new SpotifyTrackResolver(failedSearchApi).resolve(track, false),
+  /429/,
+  'propagates YouTube API failures instead of reporting the track as missing',
+);
+assert.equal(fallbackCalls, 0, 'does not spend another search request after an API failure');

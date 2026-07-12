@@ -79,3 +79,6 @@ assert.equal(
   'accepts a Topic title prefixed by a differently romanized artist name',
 );
 assert.equal(classifySpotifyCandidates([candidate({spotifySource: 'unofficial', artistMatch: false, durationDeltaSeconds: 8})]).status, 'uncertain', 'does not auto-accept a weakly attributed unofficial upload');
+
+assert.equal(isSpotifyVideoCandidateAllowed(video('Example Song (ELI Mix)', 'Character - Topic'), track('Example Song')), false, 'rejects an unexpected character mix');
+assert.equal(isSpotifyVideoCandidateAllowed(video('Example Song (ELI Mix)', 'Character - Topic'), track('Example Song (ELI Mix)')), true, 'allows a mix identified by Spotify');

@@ -34,6 +34,7 @@ const UNOFFICIAL_LYRIC_SIGNALS = /\b(lyrics?|lyric video|translation|translated|
 const REMIX_SIGNAL = /\bremix\b/;
 const LIVE_TITLE_SIGNAL = /\blive\b/;
 const SOLO_VERSION_SIGNAL = /\bsolo (ver|version)\b/;
+const MIX_VERSION_SIGNAL = /\bmix\b/;
 const ALTERED_VERSION_SIGNALS = /\b(what if|but no|no sing together|line distribution)\b/;
 const OFFICIAL_CHANNEL_SIGNALS = /\b(official|vevo)\b|\u516c\u5f0f/;
 const OFFICIAL_AUDIO_SIGNALS = /\b(official audio|official lyric video|provided to youtube by)\b/;
@@ -145,6 +146,7 @@ export const hasNonSongSignals = (title: string, channel: string, trackName = ''
   const unexpectedRemix = REMIX_SIGNAL.test(title) && !REMIX_SIGNAL.test(normalizedTrackName);
   const unexpectedLiveVersion = LIVE_TITLE_SIGNAL.test(title) && !LIVE_TITLE_SIGNAL.test(normalizedTrackName);
   const unexpectedSoloVersion = SOLO_VERSION_SIGNAL.test(title) && !SOLO_VERSION_SIGNAL.test(normalizedTrackName);
+  const unexpectedMixVersion = MIX_VERSION_SIGNAL.test(title) && !MIX_VERSION_SIGNAL.test(normalizedTrackName);
   const unofficialLyrics = (UNOFFICIAL_LYRIC_SIGNALS.test(title) || NON_ENGLISH_LYRIC_SIGNALS.test(title)) && !isOfficial;
 
   return ALWAYS_REJECT_SIGNALS.test(text)
@@ -156,6 +158,7 @@ export const hasNonSongSignals = (title: string, channel: string, trackName = ''
     || unexpectedRemix
     || unexpectedLiveVersion
     || unexpectedSoloVersion
+    || unexpectedMixVersion
     || unofficialLyrics;
 };
 
