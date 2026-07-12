@@ -379,8 +379,16 @@ export default class {
 
   private async searchVideoIdsWithYtDlpCached(query: string, limit: number): Promise<string[]> {
     return this.cache.wrap(
-      async () => this.searchVideoIdsWithYtDlp(query, limit),
-      {provider: 'yt-dlp-search', query, limit},
+      async () => {
+        const ids = await this.searchVideoIdsWithYtDlp(query, limit);
+
+        if (ids.length === 0) {
+          throw new Error(`yt-dlp returned no search results for: ${query}`);
+        }
+
+        return ids;
+      },
+      {provider: 'yt-dlp-search-v2', query, limit},
       {expiresIn: THIRTY_DAYS_IN_SECONDS},
     );
   }
