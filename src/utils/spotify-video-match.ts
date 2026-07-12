@@ -98,7 +98,7 @@ export const buildSpotifySearchQuery = (track: Pick<TrackSearchContext, 'name' |
   return artist ? `"${name}" ${artist}` : `"${name}"`;
 };
 
-export const buildSpotifyTopicSearchQuery = (track: Pick<TrackSearchContext, 'name'>): string => `${track.name.replace(/"/g, '').trim()} Topic`;
+export const buildSpotifyTopicSearchQuery = (track: Pick<TrackSearchContext, 'name'>): string => `${normalizeSearchText(track.name)} Topic`;
 
 export const getSpotifyVideoSource = (title: string, channel: string): SpotifyVideoSource => {
   if (channel.endsWith(' topic')) {

@@ -23,7 +23,9 @@ assert.equal(topicMatch.artistMatch, false, 'does not require Japanese and roman
 assert.equal(topicMatch.source, 'topic', 'recognizes Topic channels independently of artist spelling');
 assert.equal(isSpotifyVideoCandidateAllowed(romanizedTopic, unicodeTrack), true);
 assert.equal(buildSpotifySearchQuery(unicodeTrack), '"星のシグナル！" 日本語アーティスト', 'uses one focused artist-aware query');
-assert.equal(buildSpotifyTopicSearchQuery(unicodeTrack), '星のシグナル！ Topic', 'uses an unquoted Topic fallback so YouTube can resolve romanized artists');
+assert.equal(buildSpotifyTopicSearchQuery(unicodeTrack), '星のシグナル Topic', 'uses a normalized unquoted Topic fallback so YouTube can resolve romanized artists and punctuation variants');
+assert.equal(buildSpotifyTopicSearchQuery(track('にこぷり▽女子道')), 'にこぷり 女子道 Topic', 'ignores decorative symbols that differ between Spotify and YouTube');
+assert.equal(buildSpotifyTopicSearchQuery(track('シェキラ☆☆☆')), 'シェキラ Topic', 'does not require decorative stars to appear in YouTube search metadata');
 
 const officialLyrics = video('Example Unit『星のシグナル！』Official Lyric Video', '(Example series)公式チャンネル');
 const officialLyricsTrack = track('星のシグナル！', 'Example Unit');
