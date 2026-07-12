@@ -11,6 +11,9 @@ export type SpotifyTrackResolution = {
   songs: SongMetadata[];
 };
 
+const isYouTubeQuotaError = (error: unknown): boolean => error instanceof Error
+  && /(?:\b429\b|quota|rateLimitExceeded)/i.test(error.message);
+
 @injectable()
 export default class SpotifyTrackResolver {
   constructor(
@@ -35,13 +38,30 @@ export default class SpotifyTrackResolver {
     }
 
     if (decision.status !== 'high-confidence') {
-      const fallbackCandidates = await this.youtubeAPI.searchSpotifyTrackFallbackCandidates({
-        name: track.name,
-        artist: track.artist,
-        durationMs: track.durationMs,
-        shouldSplitChapters,
-        limit: 3,
-      });
+      let fallbackCandidates: SongSelectionCandidate[];
+
+      try {
+        fallbackCandidates = await this.youtubeAPI.searchSpotifyTrackFallbackCandidates({
+          name: track.name,
+          artist: track.artist,
+          durationMs: track.durationMs,
+          shouldSplitChapters,
+          limit: 3,
+        });
+      } catch (error: unknown) {
+        // The primary search completed but found nothing safe. If the daily
+        // quota blocks the optional Topic fallback, skip this one track rather
+        // than aborting every otherwise-resolved song in the playlist.
+        if (isYouTubeQuotaError(error)) {
+          return {
+            status: decision.status,
+            candidates,
+            songs: [],
+          };
+        }
+
+        throw error;
+      }
 
       const candidatesById = new Map(candidates.map(candidate => [candidate.videoId, candidate]));
 

@@ -100,3 +100,16 @@ await assert.rejects(
   'propagates YouTube API failures instead of reporting the track as missing',
 );
 assert.equal(fallbackCalls, 0, 'does not spend another search request after an API failure');
+
+const quotaLimitedFallbackApi = {
+  async searchSpotifyTrackCandidates() {
+    return [weakCandidate];
+  },
+  async searchSpotifyTrackFallbackCandidates() {
+    throw new Error('Response code 429 (Too Many Requests)');
+  },
+} as unknown as YoutubeAPI;
+
+const quotaLimitedResolution = await new SpotifyTrackResolver(quotaLimitedFallbackApi).resolve(track, false);
+assert.equal(quotaLimitedResolution.status, 'uncertain');
+assert.deepEqual(quotaLimitedResolution.songs, [], 'skips only the unresolved track when its optional fallback hits quota');

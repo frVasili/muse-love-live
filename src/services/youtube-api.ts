@@ -5,7 +5,7 @@ import {SongMetadata, QueuedPlaylist, MediaSource} from './player.js';
 import {TYPES} from '../types.js';
 import Config from './config.js';
 import KeyValueCacheProvider from './key-value-cache.js';
-import {ONE_HOUR_IN_SECONDS, ONE_MINUTE_IN_SECONDS} from '../utils/constants.js';
+import {ONE_HOUR_IN_SECONDS, ONE_MINUTE_IN_SECONDS, THIRTY_DAYS_IN_SECONDS} from '../utils/constants.js';
 import {parseTime} from '../utils/time.js';
 import getYouTubeID from 'get-youtube-id';
 import {buildSpotifySearchQuery, buildSpotifyTopicSearchQuery, getSpotifyTitleMatch, isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed, scoreSpotifyVideoMatch} from '../utils/spotify-video-match.js';
@@ -309,7 +309,7 @@ export default class {
       async () => this.got('search', params).json() as Promise<SearchResponse>,
       params,
       {
-        expiresIn: ONE_HOUR_IN_SECONDS,
+        expiresIn: THIRTY_DAYS_IN_SECONDS,
       },
     );
 
