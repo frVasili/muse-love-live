@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {classifySpotifyCandidates} from '../src/utils/spotify-track-resolution.js';
 import {
   buildSpotifySearchQuery,
+  buildSpotifyArtistTopicSearchQuery,
   buildSpotifyTopicSearchQuery,
   getSpotifyTitleMatch,
   isSpotifyDurationCandidateAllowed,
@@ -26,6 +27,7 @@ assert.equal(buildSpotifySearchQuery(unicodeTrack), '"星のシグナル！" 日
 assert.equal(buildSpotifyTopicSearchQuery(unicodeTrack), '星のシグナル Topic', 'uses a normalized unquoted Topic fallback so YouTube can resolve romanized artists and punctuation variants');
 assert.equal(buildSpotifyTopicSearchQuery(track('にこぷり▽女子道')), 'にこぷり 女子道 Topic', 'ignores decorative symbols that differ between Spotify and YouTube');
 assert.equal(buildSpotifyTopicSearchQuery(track('シェキラ☆☆☆')), 'シェキラ Topic', 'does not require decorative stars to appear in YouTube search metadata');
+assert.equal(buildSpotifyArtistTopicSearchQuery(track('Holiday∞Holiday', 'スリーズブーケ')), 'holiday holiday スリーズブーケ Topic', 'adds artist context for ambiguous normalized titles');
 
 const officialLyrics = video('Example Unit『星のシグナル！』Official Lyric Video', '(Example series)公式チャンネル');
 const officialLyricsTrack = track('星のシグナル！', 'Example Unit');

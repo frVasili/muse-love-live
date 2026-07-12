@@ -100,6 +100,8 @@ export const buildSpotifySearchQuery = (track: Pick<TrackSearchContext, 'name' |
 
 export const buildSpotifyTopicSearchQuery = (track: Pick<TrackSearchContext, 'name'>): string => `${normalizeSearchText(track.name)} Topic`;
 
+export const buildSpotifyArtistTopicSearchQuery = (track: Pick<TrackSearchContext, 'name' | 'artist'>): string => `${normalizeSearchText(track.name)} ${normalizeSearchText(track.artist)} Topic`;
+
 export const getSpotifyVideoSource = (title: string, channel: string): SpotifyVideoSource => {
   if (channel.endsWith(' topic')) {
     return 'topic';
