@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {classifySpotifyCandidates} from '../src/utils/spotify-track-resolution.js';
 import {
   buildSpotifySearchQuery,
+  buildSpotifyTopicSearchQuery,
   getSpotifyTitleMatch,
   isSpotifyDurationCandidateAllowed,
   isSpotifyVideoCandidateAllowed,
@@ -21,8 +22,8 @@ assert.equal(topicMatch.exactTitleMatch, true, 'matches Unicode titles after pun
 assert.equal(topicMatch.artistMatch, false, 'does not require Japanese and romanized artist names to match');
 assert.equal(topicMatch.source, 'topic', 'recognizes Topic channels independently of artist spelling');
 assert.equal(isSpotifyVideoCandidateAllowed(romanizedTopic, unicodeTrack), true);
-assert.equal(buildSpotifySearchQuery(unicodeTrack, true), '"星のシグナル！" 日本語アーティスト', 'uses one focused artist-aware query');
-assert.equal(buildSpotifySearchQuery(unicodeTrack, false), '"星のシグナル！"', 'uses one title-only fallback query');
+assert.equal(buildSpotifySearchQuery(unicodeTrack), '"星のシグナル！" 日本語アーティスト', 'uses one focused artist-aware query');
+assert.equal(buildSpotifyTopicSearchQuery(unicodeTrack), '星のシグナル！ Topic', 'uses an unquoted Topic fallback so YouTube can resolve romanized artists');
 
 const officialLyrics = video('Example Unit『星のシグナル！』Official Lyric Video', '(Example series)公式チャンネル');
 const officialLyricsTrack = track('星のシグナル！', 'Example Unit');

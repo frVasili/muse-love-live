@@ -81,4 +81,4 @@ const fallbackResolution = await new SpotifyTrackResolver(fallbackApi).resolve(t
 assert.equal(fallbackResolution.status, 'high-confidence');
 assert.equal(fallbackResolution.candidates[0].videoId, fallbackMatch.videoId);
 assert.equal(primaryCalls, 1);
-assert.equal(fallbackCalls, 1, 'runs at most one title-only fallback for an uncertain primary result');
+assert.equal(fallbackCalls, 1, 'runs at most one Topic fallback for an uncertain primary result');

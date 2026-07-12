@@ -91,11 +91,13 @@ const removeTitleDecorations = (title: string, trackName: string): string => {
   return result.replace(/\s+/g, ' ').trim();
 };
 
-export const buildSpotifySearchQuery = (track: Pick<TrackSearchContext, 'name' | 'artist'>, includeArtist: boolean): string => {
+export const buildSpotifySearchQuery = (track: Pick<TrackSearchContext, 'name' | 'artist'>): string => {
   const name = track.name.replace(/"/g, '').trim();
   const artist = track.artist.replace(/"/g, '').trim();
-  return includeArtist && artist ? `"${name}" ${artist}` : `"${name}"`;
+  return artist ? `"${name}" ${artist}` : `"${name}"`;
 };
+
+export const buildSpotifyTopicSearchQuery = (track: Pick<TrackSearchContext, 'name'>): string => `${track.name.replace(/"/g, '').trim()} Topic`;
 
 export const getSpotifyVideoSource = (title: string, channel: string): SpotifyVideoSource => {
   if (channel.endsWith(' topic')) {

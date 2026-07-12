@@ -8,7 +8,7 @@ import KeyValueCacheProvider from './key-value-cache.js';
 import {ONE_HOUR_IN_SECONDS, ONE_MINUTE_IN_SECONDS} from '../utils/constants.js';
 import {parseTime} from '../utils/time.js';
 import getYouTubeID from 'get-youtube-id';
-import {buildSpotifySearchQuery, getSpotifyTitleMatch, isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed, scoreSpotifyVideoMatch} from '../utils/spotify-video-match.js';
+import {buildSpotifySearchQuery, buildSpotifyTopicSearchQuery, getSpotifyTitleMatch, isSpotifyDurationCandidateAllowed, isSpotifyVideoCandidateAllowed, scoreSpotifyVideoMatch} from '../utils/spotify-video-match.js';
 import type {SpotifyVideoSource, TrackSearchContext} from '../utils/spotify-video-match.js';
 
 interface VideoDetailsResponse {
@@ -122,7 +122,7 @@ export default class {
     const normalizedArtist = artist.trim();
 
     return this.searchRankedCandidates({
-      queries: [buildSpotifySearchQuery({name: normalizedName, artist: normalizedArtist}, true)],
+      queries: [buildSpotifySearchQuery({name: normalizedName, artist: normalizedArtist})],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
@@ -141,7 +141,7 @@ export default class {
     const normalizedArtist = artist.trim();
 
     return this.searchRankedCandidates({
-      queries: [buildSpotifySearchQuery({name: normalizedName, artist: normalizedArtist}, false)],
+      queries: [buildSpotifyTopicSearchQuery({name: normalizedName})],
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
