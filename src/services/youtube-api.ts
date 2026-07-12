@@ -1,4 +1,6 @@
 import {inject, injectable} from 'inversify';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {toSeconds, parse} from 'iso8601-duration';
 import got, {Got} from 'got';
 import {SongMetadata, QueuedPlaylist, MediaSource} from './player.js';
@@ -77,6 +79,14 @@ export interface SongSelectionCandidate {
   spotifySource?: SpotifyVideoSource;
   durationDeltaSeconds?: number;
 }
+
+type YtDlpSearchResponse = {
+  entries?: Array<{id?: string}>;
+};
+
+const execFileAsync = promisify(execFile);
+const isYouTubeQuotaError = (error: unknown): boolean => error instanceof Error
+  && /(?:\b429\b|quota|rateLimitExceeded)/i.test(error.message);
 
 @injectable()
 export default class {
@@ -306,7 +316,24 @@ export default class {
     };
 
     const {items} = await this.cache.wrap(
-      async () => this.got('search', params).json() as Promise<SearchResponse>,
+      async () => {
+        try {
+          return await this.got('search', params).json<SearchResponse>();
+        } catch (error: unknown) {
+          if (!isYouTubeQuotaError(error)) {
+            throw error;
+          }
+
+          try {
+            const videoIds = await this.searchVideoIdsWithYtDlp(query, limit);
+            return {items: videoIds.map(videoId => ({id: {videoId}}))};
+          } catch (_: unknown) {
+            // Preserve the useful quota error if the bounded web-search
+            // fallback is also unavailable.
+            throw error;
+          }
+        }
+      },
       params,
       {
         expiresIn: THIRTY_DAYS_IN_SECONDS,
@@ -316,6 +343,22 @@ export default class {
     return items
       .map(item => item.id.videoId)
       .filter(Boolean);
+  }
+
+  private async searchVideoIdsWithYtDlp(query: string, limit: number): Promise<string[]> {
+    const {stdout} = await execFileAsync('yt-dlp', [
+      `ytsearch${limit}:${query}`,
+      '--flat-playlist',
+      '--dump-single-json',
+      '--no-warnings',
+    ], {
+      timeout: 30_000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    const result = JSON.parse(stdout) as YtDlpSearchResponse;
+    return (result.entries ?? [])
+      .map(entry => entry.id)
+      .filter((id): id is string => typeof id === 'string' && id.length === 11);
   }
 
   private orderVideosBySearchRank(ids: string[], videos: VideoDetailsResponse[]): VideoDetailsResponse[] {
