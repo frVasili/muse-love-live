@@ -156,6 +156,7 @@ export default class {
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,
       resultLimit: limit,
+      augmentWithYtDlp: true,
     });
   }
 
@@ -261,12 +262,13 @@ export default class {
     return songsToReturn;
   }
 
-  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5}: {
+  private async searchRankedCandidates({queries, shouldSplitChapters, track, searchLimit = 10, resultLimit = 5, augmentWithYtDlp = false}: {
     queries: string[];
     shouldSplitChapters: boolean;
     track?: TrackSearchContext;
     searchLimit?: number;
     resultLimit?: number;
+    augmentWithYtDlp?: boolean;
   }): Promise<SongSelectionCandidate[]> {
     const seenIds = new Set<string>();
     const ids: string[] = [];
@@ -275,6 +277,17 @@ export default class {
       // outage as an empty result incorrectly reports valid songs as missing.
       // eslint-disable-next-line no-await-in-loop
       const searchIds = await this.searchVideoIds(query, searchLimit);
+
+      if (augmentWithYtDlp) {
+        try {
+          // The optional Topic pass merges web-search results because the API
+          // can return a valid but weak set that omits the official upload.
+          // eslint-disable-next-line no-await-in-loop
+          searchIds.push(...await this.searchVideoIdsWithYtDlpCached(query, searchLimit));
+        } catch (_: unknown) {
+          // API candidates are still useful if the bounded augmentation fails.
+        }
+      }
 
       for (const id of searchIds) {
         if (!seenIds.has(id)) {
@@ -359,6 +372,14 @@ export default class {
     return (result.entries ?? [])
       .map(entry => entry.id)
       .filter((id): id is string => typeof id === 'string' && id.length === 11);
+  }
+
+  private async searchVideoIdsWithYtDlpCached(query: string, limit: number): Promise<string[]> {
+    return this.cache.wrap(
+      async () => this.searchVideoIdsWithYtDlp(query, limit),
+      {provider: 'yt-dlp-search', query, limit},
+      {expiresIn: THIRTY_DAYS_IN_SECONDS},
+    );
   }
 
   private orderVideosBySearchRank(ids: string[], videos: VideoDetailsResponse[]): VideoDetailsResponse[] {
