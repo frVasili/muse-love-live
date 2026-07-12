@@ -24,10 +24,10 @@ export type SpotifyVideoMatch = {
   source: SpotifyVideoSource;
 };
 
-const ALWAYS_REJECT_SIGNALS = /\b(cover|covered|karaoke|instrumental|reaction|nightcore|clip|clips|short|shorts|comparison|compared|vs|translation|translated|subbed|subtitle|subtitles|mirror|mirrored|mmd|beatsaber|beat saber|taiko|opentaiko|amv|mad|piano|orchestra|dance cover)\b/;
+const ALWAYS_REJECT_SIGNALS = /\b(cover|covered|karaoke|instrumental|reaction|nightcore|clip|clips|short|shorts|comparison|compared|vs|translation|translated|subbed|subtitle|subtitles|mirror|mirrored|mmd|beatsaber|beat saber|taiko|opentaiko|amv|mad|piano|orchestra|choreography|dance video|dance cover)\b/;
 const ALWAYS_REJECT_PHRASES = /\b(color coded|sped up|slowed down|slowed reverb|one hour|1 hour|extended loop)\b/;
 const LIVE_SIGNALS = /\b(live at|live from|live version|live performance|live concert|final live|unit live|live action|live day)\b/;
-const NON_ASCII_REJECT_SIGNALS = /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d|\u30ab\u30e9\u30aa\u30b1|\u30ac\u30a4\u30c9\u306a\u3057|\u8010\u4e45|\u30aa\u30eb\u30b4\u30fc\u30eb|\u30d4\u30a2\u30ce|\u30e9\u30a4\u30d6\u6620\u50cf|\u6f14\u594f\u3057\u3066\u307f\u305f|\u5275\u4f5c\u8b5c\u9762|\u592a\u9f13\u3055\u3093\u6b21\u90ce/;
+const NON_ASCII_REJECT_SIGNALS = /\u5207\u308a\u629c\u304d|\u6b4c\u3063\u3066\u307f\u305f|\u8e0a\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u6bd4\u3079\u3066\u307f\u305f|\u6bd4\u8f03|\u3069\u3063\u3061\u304c\u597d\u304d|\u30ab\u30e9\u30aa\u30b1|\u30ac\u30a4\u30c9\u306a\u3057|\u8010\u4e45|\u30aa\u30eb\u30b4\u30fc\u30eb|\u30d4\u30a2\u30ce|\u30e9\u30a4\u30d6\u6620\u50cf|\u632f\u308a\u4ed8\u3051|\u30c0\u30f3\u30b9\u52d5\u753b|\u6f14\u594f\u3057\u3066\u307f\u305f|\u5275\u4f5c\u8b5c\u9762|\u592a\u9f13\u3055\u3093\u6b21\u90ce/;
 const NON_ENGLISH_LYRIC_SIGNALS = /\u6b4c\u8a5e|\u00e7eviri/;
 const NON_AUDIO_VERSION_SIGNALS = /\b(off vocal|off-vocal|tv size|tv-size|game size|game-size|full combo)\b/;
 const UNOFFICIAL_LYRIC_SIGNALS = /\b(lyrics?|lyric video|translation|translated|subbed|subtitle|subtitles|color coded|romaji|romanized|eng sub|esp rom|\u00e7eviri)\b/;

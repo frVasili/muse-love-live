@@ -17,18 +17,6 @@ const isPreferredSourceMatch = (candidate: SongSelectionCandidate): boolean => c
   && hasDurationWithin(candidate, 15)
   && (candidate.exactTitleMatch || candidate.spotifySource === 'topic' || candidate.artistMatch);
 
-const isStrongUnofficialMatch = (candidate: SongSelectionCandidate): boolean => candidate.exactTitleMatch
-  && candidate.artistMatch
-  && hasDurationWithin(candidate, 10);
-
-const isDurationFingerprintMatch = (candidate: SongSelectionCandidate): boolean => candidate.exactTitleMatch
-  && hasDurationWithin(candidate, 2);
-
-const hasStrongRunnerUpLead = (candidate: SongSelectionCandidate, runnerUp?: SongSelectionCandidate): boolean => runnerUp !== undefined
-  && candidate.exactTitleMatch
-  && hasDurationWithin(candidate, 10)
-  && candidate.score - runnerUp.score >= 160;
-
 export const classifySpotifyCandidates = (candidates: SongSelectionCandidate[]): SpotifyCandidateDecision => {
   if (candidates.length === 0) {
     return {
@@ -37,12 +25,9 @@ export const classifySpotifyCandidates = (candidates: SongSelectionCandidate[]):
     };
   }
 
-  const [topCandidate, runnerUp] = candidates;
+  const [topCandidate] = candidates;
 
-  if (isPreferredSourceMatch(topCandidate)
-    || isStrongUnofficialMatch(topCandidate)
-    || isDurationFingerprintMatch(topCandidate)
-    || hasStrongRunnerUpLead(topCandidate, runnerUp)) {
+  if (isPreferredSourceMatch(topCandidate)) {
     return {
       status: 'high-confidence',
       selectedCandidate: topCandidate,

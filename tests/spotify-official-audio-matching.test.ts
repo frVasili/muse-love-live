@@ -82,3 +82,10 @@ assert.equal(classifySpotifyCandidates([candidate({spotifySource: 'unofficial', 
 
 assert.equal(isSpotifyVideoCandidateAllowed(video('Example Song (ELI Mix)', 'Character - Topic'), track('Example Song')), false, 'rejects an unexpected character mix');
 assert.equal(isSpotifyVideoCandidateAllowed(video('Example Song (ELI Mix)', 'Character - Topic'), track('Example Song (ELI Mix)')), true, 'allows a mix identified by Spotify');
+assert.equal(isSpotifyVideoCandidateAllowed(video('\u3010\u632f\u308a\u4ed8\u3051\u52d5\u753b\u3011Example Song', 'Official Channel'), track('Example Song')), false, 'rejects official choreography videos');
+
+assert.equal(
+  classifySpotifyCandidates([candidate({spotifySource: 'unofficial', exactTitleMatch: true, artistMatch: true, durationDeltaSeconds: 1})]).status,
+  'uncertain',
+  'never silently promotes an unofficial upload based only on title and duration',
+);
