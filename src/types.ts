@@ -13,6 +13,7 @@ export const TYPES = {
     AddQueryToQueue: Symbol('AddQueryToQueue'),
     ButtonChoicePrompt: Symbol('ButtonChoicePrompt'),
     GetSongs: Symbol('GetSongs'),
+    OfficialBandcampResolver: Symbol('OfficialBandcampResolver'),
     SpotifyQueueResolver: Symbol('SpotifyQueueResolver'),
     SpotifyTrackResolver: Symbol('SpotifyTrackResolver'),
     YoutubeAPI: Symbol('YoutubeAPI'),

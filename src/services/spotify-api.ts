@@ -36,7 +36,7 @@ export default class {
       }
 
       const [{body: album}, {body: {items}}] = await Promise.all([spotify.getAlbum(uri.id), spotify.getAlbumTracks(uri.id, {limit: 50})]);
-      const tracks = this.limitTracks(items, playlistLimit).map(this.toSpotifyTrack);
+      const tracks = this.limitTracks(items, playlistLimit).map(track => this.toSpotifyTrack(track, {id: album.id, name: album.name}));
       const playlist = {title: album.name, source: album.href};
 
       return [tracks, playlist];
@@ -73,7 +73,7 @@ export default class {
           .filter((track): track is SpotifyApi.TrackObjectFull => track !== null));
       }
 
-      const tracks = this.limitTracks(items, playlistLimit).map(this.toSpotifyTrack);
+      const tracks = this.limitTracks(items, playlistLimit).map(track => this.toSpotifyTrack(track));
 
       return [tracks, playlist];
     }
@@ -111,7 +111,7 @@ export default class {
 
       const {body} = await spotify.getArtistTopTracks(uri.id, 'US');
 
-      return this.limitTracks(body.tracks, playlistLimit).map(this.toSpotifyTrack);
+      return this.limitTracks(body.tracks, playlistLimit).map(track => this.toSpotifyTrack(track));
     }
   }
 
@@ -125,13 +125,21 @@ export default class {
     return item;
   }
 
-  private toSpotifyTrack(track: SpotifyApi.TrackObjectSimplified): SpotifyTrack {
+  private toSpotifyTrack(track: SpotifyApi.TrackObjectSimplified, albumOverride?: {id: string; name: string}): SpotifyTrack {
+    const album = albumOverride ?? (track as SpotifyApi.TrackObjectFull).album;
+    const artist = track.artists[0];
+
     return {
       id: track.id,
       url: `https://open.spotify.com/track/${track.id}`,
       name: track.name,
-      artist: track.artists[0].name,
+      artist: artist.name,
       durationMs: track.duration_ms,
+      ...(artist.id ? {artistId: artist.id} : {}),
+      ...(album?.id ? {albumId: album.id} : {}),
+      ...(album?.name ? {albumName: album.name} : {}),
+      ...(track.disc_number ? {discNumber: track.disc_number} : {}),
+      ...(track.track_number ? {trackNumber: track.track_number} : {}),
     };
   }
 

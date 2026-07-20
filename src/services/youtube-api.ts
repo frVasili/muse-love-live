@@ -154,7 +154,7 @@ export default class {
       queries: [
         buildSpotifyTopicSearchQuery({name: normalizedName}),
         buildSpotifyArtistTopicSearchQuery({name: normalizedName, artist: normalizedArtist}),
-      ],
+      ].filter(Boolean),
       shouldSplitChapters,
       track: {name: normalizedName, artist: normalizedArtist, durationMs},
       searchLimit: 25,

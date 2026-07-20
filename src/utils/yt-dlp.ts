@@ -21,10 +21,37 @@ interface YtDlpResponse extends YtDlpMediaDownload {
   readonly requested_downloads?: readonly YtDlpMediaDownload[];
 }
 
+interface YtDlpPlaylistResponse {
+  readonly entries?: readonly YtDlpPlaylistEntryResponse[];
+}
+
+interface YtDlpPlaylistEntryResponse {
+  readonly title?: string;
+  readonly track?: string;
+  readonly duration?: number;
+  readonly webpage_url?: string;
+  readonly original_url?: string;
+  readonly url?: string;
+  readonly uploader?: string;
+  readonly artist?: string;
+  readonly playlist_index?: number;
+  readonly track_number?: number;
+  readonly thumbnail?: string;
+}
+
 export interface YtDlpMediaSource {
   readonly url: string;
   readonly headers: Record<string, string>;
   readonly isLive: boolean;
+}
+
+export interface YtDlpPlaylistEntry {
+  readonly title: string;
+  readonly durationSeconds: number;
+  readonly webpageUrl: string;
+  readonly uploader?: string;
+  readonly playlistIndex: number;
+  readonly thumbnailUrl?: string;
 }
 
 export interface YtDlpUpdateResult {
@@ -245,7 +272,7 @@ export const updateYtDlp = async (): Promise<YtDlpUpdateResult> => {
   };
 };
 
-export const getYouTubeMediaSource = async (videoIdOrUrl: string): Promise<YtDlpMediaSource> => {
+export const getMediaSource = async (videoIdOrUrl: string): Promise<YtDlpMediaSource> => {
   try {
     const {stdout} = await execa(getExecutable(), [
       '--dump-single-json',
@@ -284,6 +311,57 @@ export const getYouTubeMediaSource = async (videoIdOrUrl: string): Promise<YtDlp
 
     if (error instanceof SyntaxError) {
       throw new Error('yt-dlp returned an invalid response.');
+    }
+
+    throw error;
+  }
+};
+
+// Compatibility export for callers outside this repository that still use the
+// historical YouTube-specific name. Full URLs have always been accepted.
+export const getYouTubeMediaSource = getMediaSource;
+
+export const parseMediaPlaylistEntries = (value: unknown): YtDlpPlaylistEntry[] => {
+  const response = value as YtDlpPlaylistResponse;
+
+  return (response.entries ?? []).flatMap((entry, index) => {
+    const webpageUrl = firstNonEmpty(entry.webpage_url, entry.original_url, entry.url);
+    const title = firstNonEmpty(entry.track, entry.title);
+    const uploader = firstNonEmpty(entry.artist, entry.uploader);
+
+    if (!webpageUrl || !title || typeof entry.duration !== 'number' || entry.duration <= 0) {
+      return [];
+    }
+
+    return [{
+      title,
+      durationSeconds: entry.duration,
+      webpageUrl,
+      ...(uploader ? {uploader} : {}),
+      playlistIndex: entry.track_number ?? entry.playlist_index ?? index + 1,
+      ...(entry.thumbnail ? {thumbnailUrl: entry.thumbnail} : {}),
+    }];
+  });
+};
+
+export const getMediaPlaylistEntries = async (url: string, timeout = 12_000): Promise<YtDlpPlaylistEntry[]> => {
+  try {
+    const {stdout} = await execa(getExecutable(), [
+      '--dump-single-json',
+      '--skip-download',
+      '--no-warnings',
+      '--no-cache-dir',
+      url,
+    ], {timeout});
+    return parseMediaPlaylistEntries(JSON.parse(stdout));
+  } catch (error: unknown) {
+    if (isExecaError(error)) {
+      const detail = error.stderr?.trim() ?? error.shortMessage ?? 'Unknown yt-dlp error';
+      throw new Error(`yt-dlp failed to inspect playlist metadata: ${detail}`);
+    }
+
+    if (error instanceof SyntaxError) {
+      throw new Error('yt-dlp returned invalid playlist metadata.');
     }
 
     throw error;

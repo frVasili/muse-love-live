@@ -29,6 +29,11 @@ type AuditRow = {
   spotifyUrl: string;
   matchSource: SpotifyQueuedTrackResolution['matchSource'];
   resolutionStatus: SpotifyQueuedTrackResolution['resolution']['status'];
+  provider: string;
+  matchedTitle: string;
+  matchedArtist: string;
+  matchedDuration: string;
+  matchedUrl: string;
   youtubeTitle: string;
   youtubeChannel: string;
   youtubeDuration: string;
@@ -183,12 +188,27 @@ const sampleIndexes = (total: number, sampleSize: number | 'all', seed: string):
 
 const candidateUrl = (candidate: SongSelectionCandidate): string => `${YOUTUBE_WATCH_URL}${candidate.videoId}`;
 
+// Keep the legacy YouTube warning vocabulary while adding provider-aware flags.
+// eslint-disable-next-line complexity
 const buildFlags = (resolution: SpotifyQueuedTrackResolution): string[] => {
   const candidate = resolution.selectedCandidate;
+  const match = resolution.selectedMatch;
   const flags: string[] = [];
 
-  if (!candidate) {
+  if (!match && !candidate) {
     flags.push('not-found');
+    return flags;
+  }
+
+  if (match?.provider === 'bandcamp') {
+    if (typeof match.durationDeltaSeconds === 'number' && match.durationDeltaSeconds > 5) {
+      flags.push('duration-mismatch');
+    }
+
+    return flags;
+  }
+
+  if (!candidate) {
     return flags;
   }
 
@@ -235,6 +255,8 @@ const buildFlags = (resolution: SpotifyQueuedTrackResolution): string[] => {
 
 const toAuditRows = (resolutions: SpotifyQueuedTrackResolution[], indexes: number[], includeAlternates: boolean): AuditRow[] => resolutions.map((resolution, rowIndex) => {
   const candidate = resolution.selectedCandidate;
+  const match = resolution.selectedMatch;
+  const youtubeCandidate = match?.provider === 'youtube' ? candidate : undefined;
   const baseRow: AuditRow = {
     index: rowIndex + 1,
     playlistIndex: indexes[rowIndex] + 1,
@@ -244,12 +266,17 @@ const toAuditRows = (resolutions: SpotifyQueuedTrackResolution[], indexes: numbe
     spotifyUrl: resolution.track.url,
     matchSource: resolution.matchSource,
     resolutionStatus: resolution.resolution.status,
-    youtubeTitle: candidate?.title ?? '',
-    youtubeChannel: candidate?.artist ?? '',
-    youtubeDuration: candidate ? prettyTime(candidate.length) : '',
-    youtubeUrl: candidate ? candidateUrl(candidate) : '',
-    score: candidate?.score ?? null,
-    durationDeltaSeconds: candidate?.durationDeltaSeconds ?? null,
+    provider: match?.provider ?? '',
+    matchedTitle: match?.title ?? '',
+    matchedArtist: match?.artist ?? '',
+    matchedDuration: match ? prettyTime(match.length) : '',
+    matchedUrl: match?.url ?? '',
+    youtubeTitle: youtubeCandidate?.title ?? '',
+    youtubeChannel: youtubeCandidate?.artist ?? '',
+    youtubeDuration: youtubeCandidate ? prettyTime(youtubeCandidate.length) : '',
+    youtubeUrl: youtubeCandidate ? candidateUrl(youtubeCandidate) : '',
+    score: match?.score ?? candidate?.score ?? null,
+    durationDeltaSeconds: match?.durationDeltaSeconds ?? candidate?.durationDeltaSeconds ?? null,
     flags: buildFlags(resolution),
   };
 
@@ -259,7 +286,7 @@ const toAuditRows = (resolutions: SpotifyQueuedTrackResolution[], indexes: numbe
 
   return {
     ...baseRow,
-    alternates: resolution.resolution.candidates.slice(1, 5).map(candidate => ({
+    alternates: resolution.resolution.candidates.slice(match?.provider === 'youtube' ? 1 : 0, match?.provider === 'youtube' ? 5 : 4).map(candidate => ({
       title: candidate.title,
       channel: candidate.artist,
       duration: prettyTime(candidate.length),
@@ -308,6 +335,11 @@ const toCsv = (rows: AuditRow[]): string => {
     'spotifyUrl',
     'matchSource',
     'resolutionStatus',
+    'provider',
+    'matchedTitle',
+    'matchedArtist',
+    'matchedDuration',
+    'matchedUrl',
     'youtubeTitle',
     'youtubeChannel',
     'youtubeDuration',
@@ -339,11 +371,12 @@ const printSummary = (rows: AuditRow[], reportPaths: string[]) => {
     playlist: row.playlistIndex,
     spotify: `${row.spotifyName} - ${row.spotifyArtist}`,
     match: row.matchSource,
-    youtube: row.youtubeTitle,
-    channel: row.youtubeChannel,
+    provider: row.provider,
+    matched: row.matchedTitle,
+    source: row.matchedArtist,
     delta: row.durationDeltaSeconds ?? '',
     flags: row.flags.join('; '),
-    url: row.youtubeUrl,
+    url: row.matchedUrl,
   })));
 
   console.log(`Audited ${rows.length.toString()} tracks.`);

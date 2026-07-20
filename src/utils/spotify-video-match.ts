@@ -61,6 +61,15 @@ const normalizeSearchText = (value: string): string => value
   .trim()
   .replace(/\s+/g, ' ');
 
+const hasUsefulNormalizedSearchText = (raw: string, normalized: string): boolean => {
+  const rawLength = [...raw.normalize('NFKC').replace(/\s/gu, '')].length;
+  const normalizedLength = [...normalized.replace(/\s/gu, '')].length;
+
+  return normalizedLength >= 3
+    && rawLength > 0
+    && (normalizedLength / rawLength) >= 0.35;
+};
+
 const hasWholePhrase = (text: string, phrase: string): boolean => phrase !== ''
   && ` ${text} `.includes(` ${phrase} `);
 
@@ -98,9 +107,15 @@ export const buildSpotifySearchQuery = (track: Pick<TrackSearchContext, 'name' |
   return artist ? `"${name}" ${artist}` : `"${name}"`;
 };
 
-export const buildSpotifyTopicSearchQuery = (track: Pick<TrackSearchContext, 'name'>): string => `${normalizeSearchText(track.name)} Topic`;
+export const buildSpotifyTopicSearchQuery = (track: Pick<TrackSearchContext, 'name'>): string => {
+  const name = normalizeSearchText(track.name);
+  return hasUsefulNormalizedSearchText(track.name, name) ? `${name} Topic` : '';
+};
 
-export const buildSpotifyArtistTopicSearchQuery = (track: Pick<TrackSearchContext, 'name' | 'artist'>): string => `${normalizeSearchText(track.name)} ${normalizeSearchText(track.artist)} Topic`;
+export const buildSpotifyArtistTopicSearchQuery = (track: Pick<TrackSearchContext, 'name' | 'artist'>): string => {
+  const name = normalizeSearchText(track.name);
+  return hasUsefulNormalizedSearchText(track.name, name) ? `${name} ${normalizeSearchText(track.artist)} Topic` : '';
+};
 
 export const getSpotifyVideoSource = (title: string, channel: string): SpotifyVideoSource => {
   if (channel.endsWith(' topic')) {

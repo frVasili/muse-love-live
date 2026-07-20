@@ -2,9 +2,12 @@ import pLimit from 'p-limit';
 import type {QueuedPlaylist, SongMetadata} from './player.js';
 import type GetSongs from './get-songs.js';
 import type {SpotifyTrack} from './spotify-api.js';
-import type SpotifyTrackResolver from './spotify-track-resolver.js';
-import type {SpotifyTrackResolution} from './spotify-track-resolver.js';
+import type * as SpotifyTrackResolverModule from './spotify-track-resolver.js';
 import type {SongSelectionCandidate} from './youtube-api.js';
+
+type SpotifyTrackResolver = SpotifyTrackResolverModule.default;
+type SpotifyResolvedMatch = SpotifyTrackResolverModule.SpotifyResolvedMatch;
+type SpotifyTrackResolution = SpotifyTrackResolverModule.SpotifyTrackResolution;
 
 const SPOTIFY_TRACK_RESOLVE_CONCURRENCY = 4;
 
@@ -13,6 +16,7 @@ export type SpotifyQueuedTrackResolution = {
   resolution: SpotifyTrackResolution;
   selectedSongs: SongMetadata[];
   selectedCandidate?: SongSelectionCandidate;
+  selectedMatch?: SpotifyResolvedMatch;
   matchSource: 'high-confidence' | 'not-found';
 };
 
@@ -80,7 +84,8 @@ export default class SpotifyQueueResolver {
         track,
         resolution,
         selectedSongs: resolution.songs,
-        selectedCandidate: resolution.candidates[0],
+        ...(resolution.selectedMatch ? {selectedMatch: resolution.selectedMatch} : {}),
+        ...(resolution.selectedMatch?.youtubeCandidate ? {selectedCandidate: resolution.selectedMatch.youtubeCandidate} : {}),
         matchSource: resolution.status,
       };
     }

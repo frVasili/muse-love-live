@@ -3,6 +3,7 @@ import type YoutubeAPI from '../src/services/youtube-api.js';
 import type {SongSelectionCandidate} from '../src/services/youtube-api.js';
 import type {SpotifyTrack} from '../src/services/spotify-api.js';
 import type {MediaSource} from '../src/services/player.js';
+import type OfficialBandcampResolver from '../src/services/official-bandcamp-resolver.js';
 
 process.env.DISCORD_TOKEN = 'test-token';
 process.env.YOUTUBE_API_KEY = 'test-key';
@@ -113,3 +114,39 @@ const quotaLimitedFallbackApi = {
 const quotaLimitedResolution = await new SpotifyTrackResolver(quotaLimitedFallbackApi).resolve(track, false);
 assert.equal(quotaLimitedResolution.status, 'uncertain');
 assert.deepEqual(quotaLimitedResolution.songs, [], 'skips only the unresolved track when its optional fallback hits quota');
+
+let bandcampCalls = 0;
+const officialBandcampResolver = {
+  async resolve() {
+    bandcampCalls++;
+    return {
+      provider: 'bandcamp' as const,
+      url: 'https://artist.bandcamp.com/track/example-song',
+      title: track.name,
+      artist: track.artist,
+      length: 240,
+      thumbnailUrl: null,
+      durationDeltaSeconds: 0,
+      confidenceEvidence: ['musicbrainz-artist-bandcamp-relation'],
+    };
+  },
+} as unknown as OfficialBandcampResolver;
+const noSafeYouTubeApi = {
+  async searchSpotifyTrackCandidates() {
+    return [weakCandidate];
+  },
+  async searchSpotifyTrackFallbackCandidates() {
+    return [];
+  },
+} as unknown as YoutubeAPI;
+const bandcampResolution = await new SpotifyTrackResolver(noSafeYouTubeApi, officialBandcampResolver).resolve(track, false);
+assert.equal(bandcampResolution.status, 'high-confidence');
+assert.equal(bandcampResolution.selectedMatch?.provider, 'bandcamp');
+assert.equal(bandcampResolution.songs[0].source, 2 as MediaSource);
+assert.equal(bandcampResolution.songs[0].url, 'https://artist.bandcamp.com/track/example-song');
+assert.equal(bandcampResolution.songs[0].spotifyOrigin?.provider, 'bandcamp');
+assert.equal(bandcampCalls, 1, 'tries the official Bandcamp provider after YouTube remains uncertain');
+
+bandcampCalls = 0;
+await new SpotifyTrackResolver(primaryApi, officialBandcampResolver).resolve(track, false);
+assert.equal(bandcampCalls, 0, 'never invokes Bandcamp after a high-confidence YouTube match');

@@ -50,3 +50,42 @@ assert.equal(resolution.trackResolutions[0].selectedCandidate?.videoId, candidat
 assert.equal(resolution.songs.length, 0, 'uncertain matches are not silently queued');
 assert.equal(resolution.songsNotFound[0].id, spotifyTrack.id);
 assert.equal(resolution.autoMatchedCount, 0);
+
+const bandcampSong = {
+  source: 2,
+  title: spotifyTrack.name,
+  artist: spotifyTrack.artist,
+  length: 254,
+  offset: 0,
+  url: 'https://artist.bandcamp.com/track/example-song',
+  playlist: null,
+  isLive: false,
+  thumbnailUrl: null,
+};
+const bandcampTrackResolver = {
+  async resolve() {
+    return {
+      status: 'high-confidence',
+      candidates: [candidate],
+      songs: [bandcampSong],
+      selectedMatch: {
+        provider: 'bandcamp',
+        url: bandcampSong.url,
+        title: bandcampSong.title,
+        artist: bandcampSong.artist,
+        length: bandcampSong.length,
+        thumbnailUrl: null,
+        isLive: false,
+        score: 1_000,
+        songs: [bandcampSong],
+        confidenceEvidence: ['official-bandcamp'],
+      },
+    };
+  },
+} as unknown as SpotifyTrackResolver;
+const bandcampResolution = await new SpotifyQueueResolver(getSongs, bandcampTrackResolver)
+  .resolveQuery('https://open.spotify.com/playlist/test', 50, false);
+assert.equal(bandcampResolution.autoMatchedCount, 1);
+assert.equal(bandcampResolution.trackResolutions[0].selectedMatch?.provider, 'bandcamp');
+assert.equal(bandcampResolution.trackResolutions[0].selectedCandidate, undefined, 'does not expose a rejected YouTube candidate as the selected Bandcamp result');
+assert.equal(bandcampResolution.songsNotFound.length, 0);

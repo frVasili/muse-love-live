@@ -6,6 +6,11 @@ export interface SpotifyTrack {
   name: string;
   artist: string;
   durationMs?: number;
+  artistId?: string;
+  albumId?: string;
+  albumName?: string;
+  discNumber?: number;
+  trackNumber?: number;
 }
 
 type SpotifyEntityType = 'album' | 'artist' | 'playlist' | 'track';
@@ -236,6 +241,8 @@ export default class SpotifyScraper {
     return [...tracks.values()];
   }
 
+  // Public Spotify responses vary between Pathfinder and embed shapes.
+  // eslint-disable-next-line complexity
   private toTrack(value: unknown): RawTrack | null {
     if (!this.isRecord(value) || typeof value.name !== 'string') {
       return null;
@@ -253,14 +260,17 @@ export default class SpotifyScraper {
       return null;
     }
 
-    const artist = this.extractArtist(value);
+    const artistEntity = this.extractArtist(value);
 
-    if (!artist) {
+    if (!artistEntity) {
       return null;
     }
 
     const durationMs = this.extractDurationMs(value);
     const id = uri?.split(':').at(-1);
+    const album = this.extractAlbum(value);
+    const discNumber = this.extractPositiveInteger(value, ['discNumber', 'disc_number', 'disc']);
+    const trackNumber = this.extractPositiveInteger(value, ['trackNumber', 'track_number', 'track']);
 
     if (!id) {
       return null;
@@ -270,10 +280,27 @@ export default class SpotifyScraper {
       id,
       url: `https://open.spotify.com/track/${id}`,
       name: value.name,
-      artist,
+      artist: artistEntity.name,
       ...(durationMs === undefined ? {} : {durationMs}),
-      key: uri ?? `${value.name}:${artist}`,
+      ...(artistEntity.id ? {artistId: artistEntity.id} : {}),
+      ...(album?.id ? {albumId: album.id} : {}),
+      ...(album?.name ? {albumName: album.name} : {}),
+      ...(discNumber === undefined ? {} : {discNumber}),
+      ...(trackNumber === undefined ? {} : {trackNumber}),
+      key: uri ?? `${value.name}:${artistEntity.name}`,
     };
+  }
+
+  private extractPositiveInteger(value: Record<string, unknown>, keys: string[]): number | undefined {
+    for (const key of keys) {
+      const candidate = value[key];
+
+      if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate > 0) {
+        return candidate;
+      }
+    }
+
+    return undefined;
   }
 
   private extractDurationMs(value: Record<string, unknown>): number | undefined {
@@ -295,17 +322,52 @@ export default class SpotifyScraper {
     return undefined;
   }
 
-  private extractArtist(value: Record<string, unknown>): string | null {
-    const directArtists = this.collectNames(value.artists);
+  private extractArtist(value: Record<string, unknown>): {name: string; id?: string} | null {
+    for (const candidate of [value.artists, value.firstArtist]) {
+      let artist: {name: string; id?: string} | null = null;
 
-    if (directArtists.length > 0) {
-      return directArtists[0];
+      this.walk(candidate, node => {
+        if (artist || !this.isRecord(node)) {
+          return;
+        }
+
+        const name = typeof node.name === 'string'
+          ? node.name
+          : (this.isRecord(node.profile) && typeof node.profile.name === 'string' ? node.profile.name : undefined);
+        const uri = typeof node.uri === 'string' && node.uri.startsWith('spotify:artist:') ? node.uri : undefined;
+
+        if (name && (uri || node.__typename === 'Artist' || node.type === 'artist')) {
+          artist = {
+            name,
+            ...(uri ? {id: uri.split(':').at(-1)} : {}),
+          };
+        }
+      });
+
+      if (artist) {
+        return artist;
+      }
     }
 
-    const firstArtist = this.collectNames(value.firstArtist);
+    const [name] = this.collectNames(value.artists);
+    return name ? {name} : null;
+  }
 
-    if (firstArtist.length > 0) {
-      return firstArtist[0];
+  private extractAlbum(value: Record<string, unknown>): {name?: string; id?: string} | null {
+    for (const candidate of [value.albumOfTrack, value.album]) {
+      if (!this.isRecord(candidate)) {
+        continue;
+      }
+
+      const uri = typeof candidate.uri === 'string' && candidate.uri.startsWith('spotify:album:') ? candidate.uri : undefined;
+      const name = typeof candidate.name === 'string' ? candidate.name : undefined;
+
+      if (uri || name) {
+        return {
+          ...(uri ? {id: uri.split(':').at(-1)} : {}),
+          ...(name ? {name} : {}),
+        };
+      }
     }
 
     return null;

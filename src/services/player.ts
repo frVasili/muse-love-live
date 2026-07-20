@@ -22,7 +22,7 @@ import FileCacheProvider from './file-cache.js';
 import debug from '../utils/debug.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
 import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
-import {getYouTubeMediaSource} from '../utils/yt-dlp.js';
+import {getMediaSource} from '../utils/yt-dlp.js';
 import {Setting} from '@prisma/client';
 import {prisma} from '../utils/db.js';
 import {replaceCurrentQueueEntry, replaceUpcomingQueueEntry} from '../utils/queue-replacement.js';
@@ -30,6 +30,7 @@ import {replaceCurrentQueueEntry, replaceUpcomingQueueEntry} from '../utils/queu
 export enum MediaSource {
   Youtube,
   HLS,
+  Bandcamp,
 }
 
 export interface QueuedPlaylist {
@@ -43,6 +44,7 @@ export interface SpotifyOrigin {
   spotifyName: string;
   spotifyArtist: string;
   spotifyDurationMs?: number;
+  provider?: 'youtube' | 'bandcamp';
   matchSource: 'high-confidence';
 }
 
@@ -635,7 +637,7 @@ export default class {
     ffmpegInput = await this.fileCache.getPathFor(this.getHashForCache(song.url));
 
     if (!ffmpegInput) {
-      const mediaSource = await getYouTubeMediaSource(song.url);
+      const mediaSource = await getMediaSource(song.url);
       ffmpegInput = mediaSource.url;
 
       const MAX_CACHE_LENGTH_SECONDS = 30 * 60;

@@ -28,6 +28,12 @@ assert.equal(buildSpotifyTopicSearchQuery(unicodeTrack), '星のシグナル Top
 assert.equal(buildSpotifyTopicSearchQuery(track('にこぷり▽女子道')), 'にこぷり 女子道 Topic', 'ignores decorative symbols that differ between Spotify and YouTube');
 assert.equal(buildSpotifyTopicSearchQuery(track('シェキラ☆☆☆')), 'シェキラ Topic', 'does not require decorative stars to appear in YouTube search metadata');
 assert.equal(buildSpotifyArtistTopicSearchQuery(track('Holiday∞Holiday', 'スリーズブーケ')), 'holiday holiday スリーズブーケ Topic', 'adds artist context for ambiguous normalized titles');
+assert.equal(buildSpotifyTopicSearchQuery(track(')✧⃛*')), '', 'does not spend a fallback search on an empty normalized glyph title');
+assert.equal(
+  buildSpotifyArtistTopicSearchQuery(track('✧₊⁎❝᷀ົཽ*ೃƪ❍⊁ƪ❍⊁༽ৣৢ؞ৢ؞ؖ ཥ', 'glyph artist')),
+  '',
+  'does not search with a few meaningless letter-like glyph fragments',
+);
 
 const officialLyrics = video('Example Unit『星のシグナル！』Official Lyric Video', '(Example series)公式チャンネル');
 const officialLyricsTrack = track('星のシグナル！', 'Example Unit');
