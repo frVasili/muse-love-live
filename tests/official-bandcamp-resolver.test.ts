@@ -31,6 +31,8 @@ assert.ok(selectMusicBrainzTrack(directRelease, directTrack), 'matches exact Uni
 assert.equal(selectMusicBrainzTrack(releaseFor({...directTrack, durationMs: 120_000}), directTrack), null, 'rejects a duration mismatch');
 assert.equal(selectBandcampTrack([bandcampEntryFor(directTrack, 'https://00000ooooo.bandcamp.com/track/--3')], directTrack)?.webpageUrl, 'https://00000ooooo.bandcamp.com/track/--3');
 assert.equal(selectBandcampTrack([bandcampEntryFor({...directTrack, name: 'wrong'}, 'https://00000ooooo.bandcamp.com/track/wrong')], directTrack), null);
+assert.equal(selectBandcampTrack([{...bandcampEntryFor(directTrack, 'https://00000ooooo.bandcamp.com/track/wrong-artist'), uploader: 'Wrong Artist'}], directTrack, {allowTitleMismatch: true}), null, 'always rejects the wrong artist');
+assert.equal(selectBandcampTrack([bandcampEntryFor({...directTrack, name: 'distribution-title-variant'}, 'https://00000ooooo.bandcamp.com/track/title-variant')], directTrack, {allowTitleMismatch: true})?.webpageUrl, 'https://00000ooooo.bandcamp.com/track/title-variant', 'allows a title variance only when the caller has a direct release relationship');
 assert.deepEqual(parseMediaPlaylistEntries({entries: [{
   title: `${glyphArtist} - ${directTrack.name}`,
   track: directTrack.name,
@@ -109,6 +111,16 @@ const catalogMatch = await resolver.resolve(catalogTrack);
 assert.equal(catalogMatch?.url, 'https://00000ooooo.bandcamp.com/track/--9');
 assert.equal(catalogMatch?.artist, glyphArtist);
 assert.ok(catalogMatch?.confidenceEvidence.includes('musicbrainz-artist-bandcamp-relation'));
+
+const directTitleVariant = {...directTrack, id: 'direct-title-variant', name: 'Spotify glyph variant'};
+const directTitleVariantResolver = new OfficialBandcampResolver(new FakeCache() as unknown as KeyValueCacheProvider, {
+  requestJson: async url => url.includes('/url?') ? {relations: [{release: {id: 'variant-release'}}]} : directRelease,
+  requestText: async () => '',
+  getPlaylistEntries: async () => [bandcampEntryFor(directTrack, 'https://00000ooooo.bandcamp.com/track/title-variant')],
+});
+const titleVariantMatch = await directTitleVariantResolver.resolve(directTitleVariant);
+assert.equal(titleVariantMatch?.url, 'https://00000ooooo.bandcamp.com/track/title-variant');
+assert.ok(titleVariantMatch?.confidenceEvidence.includes('direct-release-position-artist-duration'));
 
 const missingRelationResolver = new OfficialBandcampResolver(new FakeCache() as unknown as KeyValueCacheProvider, {
   requestJson: async url => url.includes('/url?') ? {relations: [{release: {id: 'release'}}]} : releaseFor(directTrack),

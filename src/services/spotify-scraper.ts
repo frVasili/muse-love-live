@@ -62,8 +62,12 @@ export default class SpotifyScraper {
 
   async getAlbum(id: string, playlistLimit: number): Promise<[SpotifyTrack[], QueuedPlaylist]> {
     const pages = await this.getPagedEntity('album', id, 50);
-    const tracks = this.limitTracks(this.extractTracks(pages), playlistLimit);
     const title = this.findEntityName(pages[0], `spotify:album:${id}`) ?? 'Spotify album';
+    const tracks = this.limitTracks(this.extractTracks(pages), playlistLimit).map(track => ({
+      ...track,
+      albumId: track.albumId ?? id,
+      albumName: track.albumName ?? title,
+    }));
 
     return [tracks, {title, source: `https://open.spotify.com/album/${id}`}];
   }

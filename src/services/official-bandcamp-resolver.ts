@@ -184,7 +184,11 @@ export const selectMusicBrainzTrack = (release: unknown, track: SpotifyTrack): M
   return {title: candidate.title, artist, durationSeconds};
 };
 
-export const selectBandcampTrack = (entries: readonly YtDlpPlaylistEntry[], track: SpotifyTrack): YtDlpPlaylistEntry | null => {
+export const selectBandcampTrack = (
+  entries: readonly YtDlpPlaylistEntry[],
+  track: SpotifyTrack,
+  options: {allowTitleMismatch?: boolean} = {},
+): YtDlpPlaylistEntry | null => {
   if (track.discNumber !== 1 || !track.trackNumber || !track.durationMs) {
     return null;
   }
@@ -192,7 +196,9 @@ export const selectBandcampTrack = (entries: readonly YtDlpPlaylistEntry[], trac
   const {durationMs} = track;
 
   const matches = entries.filter(entry => entry.playlistIndex === track.trackNumber
-    && normalizeBandcampIdentity(entry.title) === normalizeBandcampIdentity(track.name)
+    && (options.allowTitleMismatch || normalizeBandcampIdentity(entry.title) === normalizeBandcampIdentity(track.name))
+    && typeof entry.uploader === 'string'
+    && normalizeBandcampIdentity(entry.uploader) === normalizeBandcampIdentity(track.artist)
     && Math.abs(entry.durationSeconds - (durationMs / 1000)) <= DURATION_TOLERANCE_SECONDS
     && canonicalBandcampUrl(entry.webpageUrl) !== null);
 
@@ -273,16 +279,23 @@ export default class OfficialBandcampResolver {
     }
 
     const release = await this.getMusicBrainzEntityForSpotifyUrl('release', `https://open.spotify.com/album/${albumId}`);
-    if (!release || !selectMusicBrainzTrack(release, track)) {
+    if (!release) {
       return null;
     }
 
     let albumUrl = this.getSingleBandcampAlbumUrl(release);
-    const confidenceEvidence = ['musicbrainz-spotify-release', 'exact-disc-track-title-artist-duration'];
+    const hasDirectReleaseRelation = Boolean(albumUrl);
+    const confidenceEvidence = ['musicbrainz-spotify-release'];
 
     if (albumUrl) {
       confidenceEvidence.push('musicbrainz-release-bandcamp-relation');
     } else {
+      // The catalog fallback has one less direct link, so retain exact MusicBrainz
+      // track validation before following an artist homepage relationship.
+      if (!selectMusicBrainzTrack(release, track)) {
+        return null;
+      }
+
       const artist = await this.getMusicBrainzEntityForSpotifyUrl('artist', `https://open.spotify.com/artist/${artistId}`);
       const artistBaseUrl = this.getSingleBandcampArtistUrl(artist);
       if (!artistBaseUrl) {
@@ -305,12 +318,17 @@ export default class OfficialBandcampResolver {
         return result.length > 0 ? result : null;
       },
     );
-    const entry = entries ? selectBandcampTrack(entries, track) : null;
+    const entry = entries ? selectBandcampTrack(entries, track, {allowTitleMismatch: hasDirectReleaseRelation}) : null;
     const canonicalUrl = entry ? canonicalBandcampUrl(entry.webpageUrl) : null;
 
     if (!entry || !canonicalUrl || new URL(canonicalUrl).origin !== new URL(resolvedAlbumUrl).origin) {
       return null;
     }
+
+    const exactTitle = normalizeBandcampIdentity(entry.title) === normalizeBandcampIdentity(track.name);
+    confidenceEvidence.push(exactTitle
+      ? 'exact-position-title-artist-duration'
+      : 'direct-release-position-artist-duration');
 
     return {
       provider: 'bandcamp',

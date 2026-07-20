@@ -31,3 +31,30 @@ assert.equal(track.albumName, 'Glyph Album');
 assert.equal(track.discNumber, 1);
 assert.equal(track.trackNumber, 1);
 assert.equal(track.durationMs, 139_842);
+
+const albumScraper = new SpotifyScraper() as unknown as {
+  getPagedEntity: () => Promise<unknown[]>;
+  getAlbum: (id: string, playlistLimit: number) => Promise<[Array<Record<string, unknown>>, unknown]>;
+};
+albumScraper.getPagedEntity = async () => [{
+  __typename: 'Album',
+  uri: 'spotify:album:enclosing-album-id',
+  name: 'Enclosing Album',
+  tracks: {items: [{
+    __typename: 'Track',
+    uri: 'spotify:track:album-track-id',
+    name: 'Album Track',
+    duration: {totalMilliseconds: 180_000},
+    discNumber: 1,
+    trackNumber: 1,
+    firstArtist: {
+      __typename: 'Artist',
+      uri: 'spotify:artist:artist-id',
+      profile: {name: 'Album Artist'},
+    },
+  }]},
+}];
+
+const [[albumTrack]] = await albumScraper.getAlbum('enclosing-album-id', 50);
+assert.equal(albumTrack.albumId, 'enclosing-album-id', 'inherits the enclosing album id when track nodes omit it');
+assert.equal(albumTrack.albumName, 'Enclosing Album', 'inherits the enclosing album name when track nodes omit it');
