@@ -14,6 +14,7 @@ export const TYPES = {
     ButtonChoicePrompt: Symbol('ButtonChoicePrompt'),
     GetSongs: Symbol('GetSongs'),
     OfficialBandcampResolver: Symbol('OfficialBandcampResolver'),
+    OfficialSoundCloudResolver: Symbol('OfficialSoundCloudResolver'),
     SoundCloudResolver: Symbol('SoundCloudResolver'),
     SpotifyQueueResolver: Symbol('SpotifyQueueResolver'),
     SpotifyTrackResolver: Symbol('SpotifyTrackResolver'),

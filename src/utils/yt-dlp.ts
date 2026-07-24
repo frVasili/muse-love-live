@@ -64,6 +64,8 @@ export interface YtDlpUpdateResult {
 }
 
 export interface YtDlpMetadataOptions {
+  readonly flatPlaylist?: boolean;
+  readonly ignoreErrors?: boolean;
   readonly playlistEnd?: number;
   readonly timeout?: number;
 }
@@ -333,6 +335,14 @@ export const getMediaMetadata = async (url: string, options: YtDlpMetadataOption
     '--no-warnings',
     '--no-cache-dir',
   ];
+
+  if (options.flatPlaylist) {
+    args.push('--flat-playlist');
+  }
+
+  if (options.ignoreErrors) {
+    args.push('--ignore-errors');
+  }
 
   if (options.playlistEnd !== undefined && Number.isFinite(options.playlistEnd)) {
     args.push('--playlist-end', Math.max(1, Math.floor(options.playlistEnd)).toString());

@@ -200,7 +200,7 @@ const buildFlags = (resolution: SpotifyQueuedTrackResolution): string[] => {
     return flags;
   }
 
-  if (match?.provider === 'bandcamp') {
+  if (match && match.provider !== 'youtube') {
     if (typeof match.durationDeltaSeconds === 'number' && match.durationDeltaSeconds > 5) {
       flags.push('duration-mismatch');
     }

@@ -5,8 +5,9 @@ import type {SpotifyTrack} from './spotify-api.js';
 import YoutubeAPI, {SongSelectionCandidate} from './youtube-api.js';
 import {classifySpotifyCandidates} from '../utils/spotify-track-resolution.js';
 import OfficialBandcampResolver from './official-bandcamp-resolver.js';
+import OfficialSoundCloudResolver from './official-soundcloud-resolver.js';
 
-export type SpotifyMatchProvider = 'youtube' | 'bandcamp';
+export type SpotifyMatchProvider = 'youtube' | 'bandcamp' | 'soundcloud';
 
 export type SpotifyResolvedMatch = {
   provider: SpotifyMatchProvider;
@@ -35,6 +36,7 @@ export default class SpotifyTrackResolver {
   constructor(
     @inject(TYPES.Services.YoutubeAPI) private readonly youtubeAPI: YoutubeAPI,
     @inject(TYPES.Services.OfficialBandcampResolver) @optional() private readonly officialBandcampResolver?: OfficialBandcampResolver,
+    @inject(TYPES.Services.OfficialSoundCloudResolver) @optional() private readonly officialSoundCloudResolver?: OfficialSoundCloudResolver,
   ) {}
 
   async resolve(track: SpotifyTrack, shouldSplitChapters: boolean, playlist?: QueuedPlaylist): Promise<SpotifyTrackResolution> {
@@ -109,6 +111,34 @@ export default class SpotifyTrackResolver {
       }];
       const selectedMatch: SpotifyResolvedMatch = {
         ...bandcampMatch,
+        isLive: false,
+        score: 1_000,
+        songs,
+      };
+
+      return {
+        status: 'high-confidence',
+        candidates,
+        selectedMatch,
+        songs: this.attachSpotifyOrigin(track, songs, 'high-confidence', {provider: selectedMatch.provider, playlist}),
+      };
+    }
+
+    const soundCloudMatch = await this.officialSoundCloudResolver?.resolve(track);
+    if (soundCloudMatch) {
+      const songs: SongMetadata[] = [{
+        source: 3 as MediaSource,
+        title: soundCloudMatch.title,
+        artist: soundCloudMatch.artist,
+        length: soundCloudMatch.length,
+        offset: 0,
+        url: soundCloudMatch.url,
+        playlist: null,
+        isLive: false,
+        thumbnailUrl: soundCloudMatch.thumbnailUrl,
+      }];
+      const selectedMatch: SpotifyResolvedMatch = {
+        ...soundCloudMatch,
         isLive: false,
         score: 1_000,
         songs,

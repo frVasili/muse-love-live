@@ -41,7 +41,7 @@ export interface SpotifyOrigin {
   spotifyName: string;
   spotifyArtist: string;
   spotifyDurationMs?: number;
-  provider?: 'youtube' | 'bandcamp';
+  provider?: 'youtube' | 'bandcamp' | 'soundcloud';
   matchSource: 'high-confidence';
 }
 

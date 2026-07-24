@@ -4,6 +4,7 @@ import type {SongSelectionCandidate} from '../src/services/youtube-api.js';
 import type {SpotifyTrack} from '../src/services/spotify-api.js';
 import type {MediaSource} from '../src/services/player.js';
 import type OfficialBandcampResolver from '../src/services/official-bandcamp-resolver.js';
+import type OfficialSoundCloudResolver from '../src/services/official-soundcloud-resolver.js';
 
 process.env.DISCORD_TOKEN = 'test-token';
 process.env.YOUTUBE_API_KEY = 'test-key';
@@ -116,6 +117,7 @@ assert.equal(quotaLimitedResolution.status, 'uncertain');
 assert.deepEqual(quotaLimitedResolution.songs, [], 'skips only the unresolved track when its optional fallback hits quota');
 
 let bandcampCalls = 0;
+let soundCloudCalls = 0;
 const officialBandcampResolver = {
   async resolve() {
     bandcampCalls++;
@@ -131,6 +133,21 @@ const officialBandcampResolver = {
     };
   },
 } as unknown as OfficialBandcampResolver;
+const officialSoundCloudResolver = {
+  async resolve() {
+    soundCloudCalls++;
+    return {
+      provider: 'soundcloud' as const,
+      url: 'https://soundcloud.com/official-artist/example-song',
+      title: track.name,
+      artist: track.artist,
+      length: 240,
+      thumbnailUrl: null,
+      durationDeltaSeconds: 0,
+      confidenceEvidence: ['musicbrainz-artist-soundcloud-relation', 'official-profile-track-membership'],
+    };
+  },
+} as unknown as OfficialSoundCloudResolver;
 const noSafeYouTubeApi = {
   async searchSpotifyTrackCandidates() {
     return [weakCandidate];
@@ -139,14 +156,36 @@ const noSafeYouTubeApi = {
     return [];
   },
 } as unknown as YoutubeAPI;
-const bandcampResolution = await new SpotifyTrackResolver(noSafeYouTubeApi, officialBandcampResolver).resolve(track, false);
+const bandcampResolution = await new SpotifyTrackResolver(noSafeYouTubeApi, officialBandcampResolver, officialSoundCloudResolver).resolve(track, false);
 assert.equal(bandcampResolution.status, 'high-confidence');
 assert.equal(bandcampResolution.selectedMatch?.provider, 'bandcamp');
 assert.equal(bandcampResolution.songs[0].source, 2 as MediaSource);
 assert.equal(bandcampResolution.songs[0].url, 'https://artist.bandcamp.com/track/example-song');
 assert.equal(bandcampResolution.songs[0].spotifyOrigin?.provider, 'bandcamp');
 assert.equal(bandcampCalls, 1, 'tries the official Bandcamp provider after YouTube remains uncertain');
+assert.equal(soundCloudCalls, 0, 'never invokes SoundCloud after an official Bandcamp match');
 
 bandcampCalls = 0;
-await new SpotifyTrackResolver(primaryApi, officialBandcampResolver).resolve(track, false);
+soundCloudCalls = 0;
+await new SpotifyTrackResolver(primaryApi, officialBandcampResolver, officialSoundCloudResolver).resolve(track, false);
 assert.equal(bandcampCalls, 0, 'never invokes Bandcamp after a high-confidence YouTube match');
+assert.equal(soundCloudCalls, 0, 'never invokes SoundCloud after a high-confidence YouTube match');
+
+const missingBandcampResolver = {
+  async resolve() {
+    bandcampCalls++;
+    return null;
+  },
+} as unknown as OfficialBandcampResolver;
+const soundCloudResolution = await new SpotifyTrackResolver(
+  noSafeYouTubeApi,
+  missingBandcampResolver,
+  officialSoundCloudResolver,
+).resolve(track, false);
+assert.equal(soundCloudResolution.status, 'high-confidence');
+assert.equal(soundCloudResolution.selectedMatch?.provider, 'soundcloud');
+assert.equal(soundCloudResolution.songs[0].source, 3 as MediaSource);
+assert.equal(soundCloudResolution.songs[0].url, 'https://soundcloud.com/official-artist/example-song');
+assert.equal(soundCloudResolution.songs[0].spotifyOrigin?.provider, 'soundcloud');
+assert.equal(bandcampCalls, 1, 'tries Bandcamp before SoundCloud');
+assert.equal(soundCloudCalls, 1, 'tries SoundCloud only after YouTube and Bandcamp fail');

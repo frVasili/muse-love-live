@@ -17,6 +17,7 @@ import SpotifyAPI from './services/spotify-api.js';
 import SpotifyQueueResolver from './services/spotify-queue-resolver.js';
 import SpotifyTrackResolver from './services/spotify-track-resolver.js';
 import OfficialBandcampResolver from './services/official-bandcamp-resolver.js';
+import OfficialSoundCloudResolver from './services/official-soundcloud-resolver.js';
 import SoundCloudResolver from './services/soundcloud-resolver.js';
 
 // Commands
@@ -71,6 +72,7 @@ container.bind<GetSongs>(TYPES.Services.GetSongs).to(GetSongs).inSingletonScope(
 container.bind<AddQueryToQueue>(TYPES.Services.AddQueryToQueue).to(AddQueryToQueue).inSingletonScope();
 container.bind<ButtonChoicePrompt>(TYPES.Services.ButtonChoicePrompt).to(ButtonChoicePrompt).inSingletonScope();
 container.bind<OfficialBandcampResolver>(TYPES.Services.OfficialBandcampResolver).to(OfficialBandcampResolver).inSingletonScope();
+container.bind<OfficialSoundCloudResolver>(TYPES.Services.OfficialSoundCloudResolver).to(OfficialSoundCloudResolver).inSingletonScope();
 container.bind<SoundCloudResolver>(TYPES.Services.SoundCloudResolver).toConstantValue(new SoundCloudResolver());
 container.bind<SpotifyQueueResolver>(TYPES.Services.SpotifyQueueResolver).toDynamicValue(context => new SpotifyQueueResolver(
   context.container.get<GetSongs>(TYPES.Services.GetSongs),

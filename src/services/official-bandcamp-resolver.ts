@@ -230,7 +230,7 @@ const getStatusCode = (error: unknown): number | undefined => {
   return error.response.statusCode;
 };
 
-const scheduleMusicBrainzRequest = async <T>(request: () => Promise<T>): Promise<T> => {
+export const scheduleMusicBrainzRequest = async <T>(request: () => Promise<T>): Promise<T> => {
   const scheduled = musicBrainzRequestTail.then(async () => {
     const waitMs = Math.max(0, 1_000 - (Date.now() - lastMusicBrainzRequestAt));
     if (waitMs > 0) {
