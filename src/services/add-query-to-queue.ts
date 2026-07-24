@@ -77,6 +77,7 @@ export default class AddQueryToQueue {
       playlistLimit,
       query,
       shouldSplitChapters,
+      shuffleAdditions,
     });
 
     if (newSongs.length === 0) {
@@ -163,11 +164,13 @@ export default class AddQueryToQueue {
     playlistLimit,
     query,
     shouldSplitChapters,
+    shuffleAdditions,
   }: {
     interaction: ChatInputCommandInteraction;
     playlistLimit: number;
     query: string;
     shouldSplitChapters: boolean;
+    shuffleAdditions: boolean;
   }): Promise<QueueResolution> {
     if (!this.getSongs.isUrl(query)) {
       return this.resolveSearchQuery(interaction, query, shouldSplitChapters);
@@ -178,7 +181,7 @@ export default class AddQueryToQueue {
     }
 
     return {
-      songs: await this.getSongs.getDirectUrlSongs(query, shouldSplitChapters, playlistLimit),
+      songs: await this.getSongs.getDirectUrlSongs(query, shouldSplitChapters, playlistLimit, shuffleAdditions),
       extraMsg: '',
     };
   }

@@ -12,7 +12,7 @@ const getMaxSongTitleLength = (title: string) => {
 };
 
 const getSongTitle = ({title, url, offset, source}: QueuedSong, shouldTruncate = false) => {
-  if (source === MediaSource.HLS || source === MediaSource.Bandcamp) {
+  if (source === MediaSource.HLS || source === MediaSource.Bandcamp || source === MediaSource.SoundCloud) {
     return `[${title}](${url})`;
   }
 

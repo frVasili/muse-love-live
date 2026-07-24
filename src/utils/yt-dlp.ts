@@ -63,6 +63,11 @@ export interface YtDlpUpdateResult {
   readonly error?: string;
 }
 
+export interface YtDlpMetadataOptions {
+  readonly playlistEnd?: number;
+  readonly timeout?: number;
+}
+
 const firstNonEmpty = (...values: Array<string | undefined>) => values
   .map(value => value?.trim())
   .find((value): value is string => Boolean(value));
@@ -320,6 +325,39 @@ export const getMediaSource = async (videoIdOrUrl: string): Promise<YtDlpMediaSo
 // Compatibility export for callers outside this repository that still use the
 // historical YouTube-specific name. Full URLs have always been accepted.
 export const getYouTubeMediaSource = getMediaSource;
+
+export const getMediaMetadata = async (url: string, options: YtDlpMetadataOptions = {}): Promise<unknown> => {
+  const args = [
+    '--dump-single-json',
+    '--skip-download',
+    '--no-warnings',
+    '--no-cache-dir',
+  ];
+
+  if (options.playlistEnd !== undefined && Number.isFinite(options.playlistEnd)) {
+    args.push('--playlist-end', Math.max(1, Math.floor(options.playlistEnd)).toString());
+  }
+
+  args.push(url);
+
+  try {
+    const {stdout} = await execa(getExecutable(), args, {
+      timeout: options.timeout ?? YT_DLP_EXTRACT_TIMEOUT_MS,
+    });
+    return JSON.parse(stdout) as unknown;
+  } catch (error: unknown) {
+    if (isExecaError(error)) {
+      const detail = error.stderr?.trim() ?? error.shortMessage ?? 'Unknown yt-dlp error';
+      throw new Error(`yt-dlp failed to inspect media metadata: ${detail}`);
+    }
+
+    if (error instanceof SyntaxError) {
+      throw new Error('yt-dlp returned invalid media metadata.');
+    }
+
+    throw error;
+  }
+};
 
 export const parseMediaPlaylistEntries = (value: unknown): YtDlpPlaylistEntry[] => {
   const response = value as YtDlpPlaylistResponse;

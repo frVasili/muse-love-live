@@ -26,12 +26,9 @@ import {getMediaSource} from '../utils/yt-dlp.js';
 import {Setting} from '@prisma/client';
 import {prisma} from '../utils/db.js';
 import {replaceCurrentQueueEntry, replaceUpcomingQueueEntry} from '../utils/queue-replacement.js';
+import {MediaSource} from './media-source.js';
 
-export enum MediaSource {
-  Youtube,
-  HLS,
-  Bandcamp,
-}
+export {MediaSource} from './media-source.js';
 
 export interface QueuedPlaylist {
   title: string;

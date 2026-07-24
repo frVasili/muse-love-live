@@ -6,6 +6,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import YoutubeAPI, {SongSelectionCandidate} from './youtube-api.js';
 import SpotifyAPI, {SpotifyTrack} from './spotify-api.js';
 import {URL} from 'node:url';
+import SoundCloudResolver, {isSoundCloudUrl} from './soundcloud-resolver.js';
 
 const YOUTUBE_HOSTS = [
   'www.youtube.com',
@@ -20,7 +21,11 @@ export default class GetSongs {
   private readonly youtubeAPI: YoutubeAPI;
   private readonly spotifyAPI?: SpotifyAPI;
 
-  constructor(@inject(TYPES.Services.YoutubeAPI) youtubeAPI: YoutubeAPI, @inject(TYPES.Services.SpotifyAPI) @optional() spotifyAPI?: SpotifyAPI) {
+  constructor(
+    @inject(TYPES.Services.YoutubeAPI) youtubeAPI: YoutubeAPI,
+    @inject(TYPES.Services.SoundCloudResolver) private readonly soundCloudResolver: SoundCloudResolver,
+    @inject(TYPES.Services.SpotifyAPI) @optional() spotifyAPI?: SpotifyAPI,
+  ) {
     this.youtubeAPI = youtubeAPI;
     this.spotifyAPI = spotifyAPI;
   }
@@ -57,8 +62,12 @@ export default class GetSongs {
     return this.youtubeAPI.searchCandidates(query, shouldSplitChapters, limit);
   }
 
-  async getDirectUrlSongs(query: string, shouldSplitChapters: boolean, playlistLimit?: number): Promise<SongMetadata[]> {
+  async getDirectUrlSongs(query: string, shouldSplitChapters: boolean, playlistLimit?: number, shufflePlaylist = false): Promise<SongMetadata[]> {
     const url = new URL(query);
+
+    if (isSoundCloudUrl(url.href)) {
+      return this.soundCloudResolver.resolve(url.href, playlistLimit, shufflePlaylist);
+    }
 
     if (YOUTUBE_HOSTS.includes(url.host)) {
       if (url.searchParams.get('list')) {
